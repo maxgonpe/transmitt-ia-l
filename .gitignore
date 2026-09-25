@@ -1,0 +1,55 @@
+# Django y Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Configuración local y secretos
+.env
+.env.*
+!.env.example
+settings.py
+**/settings.py
+local_settings.py
+**/local_settings.py
+
+# Datos y archivos generados por la aplicación
+media/
+**/media/
+otros/
+**/otros/
+staticfiles/
+*.sqlite3
+*.sqlite3-journal
+*.log
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Herramientas de desarrollo
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Cobertura y pruebas
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Archivos temporales y de compilación
+*.tmp
+*.temp
+*.bak
+dist/
+build/
+*.egg-info/
