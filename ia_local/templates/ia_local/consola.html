@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>IA local</title>
+    <style>
+        body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        textarea { width: 100%; min-height: 6rem; }
+        pre { background: #f4f4f4; padding: 1rem; overflow: auto; }
+        .error { color: #a00; }
+    </style>
+</head>
+<body>
+    <h1>IA local</h1>
+    <form method="post">
+        {% csrf_token %}
+        <label for="pregunta">Pregunta</label>
+        <textarea id="pregunta" name="pregunta" required>{{ pregunta|default:'' }}</textarea>
+        <button type="submit">Consultar</button>
+    </form>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    {% if respuesta %}<h2>Respuesta</h2><pre>{{ respuesta }}</pre>{% endif %}
+    {% if raw %}<h2>JSON de Qwen</h2><pre>{{ raw|pprint }}</pre>{% endif %}
+    {% if intencion %}<h2>JSON normalizado</h2><pre>{{ intencion|pprint }}</pre>{% endif %}
+    {% if resultado %}<h2>Resultado ORM</h2><pre>{{ resultado|pprint }}</pre>{% endif %}
+</body>
+</html>

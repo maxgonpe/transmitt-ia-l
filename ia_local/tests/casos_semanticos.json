@@ -1,0 +1,9 @@
+[
+  {"pregunta": "¿Cuántos clientes tenemos?", "tema": "clientes", "operacion": "contar"},
+  {"pregunta": "Lístame los clientes.", "tema": "clientes", "operacion": "listar"},
+  {"pregunta": "¿Qué equipos tiene el cliente?", "tema": "equipos", "operacion": "listar"},
+  {"pregunta": "Busca el equipo ABC123.", "tema": "equipos", "operacion": "listar"},
+  {"pregunta": "¿Cuántos diagnósticos están pendientes?", "tema": "diagnosticos", "operacion": "contar"},
+  {"pregunta": "Lístame los trabajos.", "tema": "trabajos", "operacion": "listar"},
+  {"pregunta": "Muéstrame el último trabajo.", "tema": "trabajos", "cantidad": "uno", "orden": "reciente"}
+]
