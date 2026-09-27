@@ -12,6 +12,7 @@ def consulta_ia(request):
         "pregunta": "",
         "respuesta": "",
         "plan": None,
+        "resultado": None,
         "error": "",
     }
 
@@ -24,19 +25,17 @@ def consulta_ia(request):
         else:
             try:
                 salida = procesar_pregunta(pregunta)
-
                 contexto["plan"] = salida["plan"]
+                contexto["resultado"] = salida["resultado"]
                 contexto["respuesta"] = salida["resultado"]["respuesta"]
-
             except Exception as exc:
                 contexto["error"] = str(exc)
 
     return render(
         request,
-        "ia_local/consulta.html",
+        "ia_local/consola.html",
         contexto,
     )
-
 
 @staff_member_required
 @require_http_methods(["POST"])
@@ -45,16 +44,13 @@ def consulta_ia_json(request):
 
     if not pregunta:
         return JsonResponse(
-            {
-                "ok": False,
-                "error": "La pregunta está vacía.",
-            },
+            {"ok": False, "error": "La pregunta está vacía."},
             status=400,
+            json_dumps_params={"ensure_ascii": False},
         )
 
     try:
         salida = procesar_pregunta(pregunta)
-
         return JsonResponse(
             {
                 "ok": True,
@@ -65,13 +61,9 @@ def consulta_ia_json(request):
             },
             json_dumps_params={"ensure_ascii": False},
         )
-
     except Exception as exc:
         return JsonResponse(
-            {
-                "ok": False,
-                "error": str(exc),
-            },
+            {"ok": False, "error": str(exc)},
             status=400,
             json_dumps_params={"ensure_ascii": False},
         )

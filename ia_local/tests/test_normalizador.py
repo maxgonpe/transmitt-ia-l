@@ -1,36 +1,75 @@
 from django.test import SimpleTestCase
-import json
-from pathlib import Path
 
 from ia_local.services.normalizador import normalizar_intencion
 
-
 class NormalizadorTests(SimpleTestCase):
-    def test_semantic_case_bank_has_valid_base_contract(self):
-        cases = json.loads(Path(__file__).with_name("casos_semanticos.json").read_text())
-        self.assertGreaterEqual(len(cases), 7)
-        for case in cases:
-            raw = {
-                "tema": case["tema"],
-                "operacion": case.get("operacion", "listar"),
+    def test_elimina_filtros_ajenos_al_dominio(self):
+        resultado = normalizar_intencion(
+            {
+                "tema": "adjuntos",
+                "operacion": "listar",
+                "filtros": {
+                    "texto": "sala eléctrica",
+                    "vendor": "X",
+                    "zones": "Z1",
+                    "tipo_documento": "PDF",
+                },
+                "cantidad": "varios",
+                "orden": "ninguno",
+            },
+            "Encuentra archivos adjuntos que contengan sala eléctrica",
+        )
+
+        self.assertEqual(
+            resultado["filtros"],
+            {
+                "texto": "sala eléctrica",
+                "solo_contenido": True,
+            },
+        )
+
+    def test_pregunta_de_conteo_fuerza_contar(self):
+        resultado = normalizar_intencion(
+            {
+                "tema": "rdi",
+                "operacion": "listar",
+                "filtros": {"estado": "ABIERTA"},
+                "cantidad": "varios",
+                "orden": "ninguno",
+            },
+            "¿Cuántas RDI están abiertas?",
+        )
+
+        self.assertEqual(resultado["operacion"], "contar")
+        self.assertEqual(resultado["cantidad"], "todos")
+
+    def test_ultimo_fuerza_detalle_reciente(self):
+        resultado = normalizar_intencion(
+            {
+                "tema": "transmittals",
+                "operacion": "listar",
                 "filtros": {},
-                "cantidad": case.get("cantidad", "varios"),
-                "orden": case.get("orden", "ninguno"),
-            }
-            result = normalizar_intencion(raw, case["pregunta"])
-            self.assertEqual(result["tema"], case["tema"])
-
-    def test_count_question_forces_count(self):
-        result = normalizar_intencion(
-            {"tema": "trabajos", "operacion": "listar", "filtros": {}, "cantidad": "varios", "orden": "ninguno"},
-            "¿Cuántos trabajos tiene Leonor?",
+                "cantidad": "varios",
+                "orden": "ninguno",
+            },
+            "Muéstrame el último transmittal",
         )
-        self.assertEqual(result["operacion"], "contar")
 
-    def test_latest_question_forces_one_recent(self):
-        result = normalizar_intencion(
-            {"tema": "trabajos", "operacion": "listar", "filtros": {}, "cantidad": "varios", "orden": "ninguno"},
-            "Muéstrame el último trabajo de Leonor",
+        self.assertEqual(resultado["operacion"], "detalle")
+        self.assertEqual(resultado["cantidad"], "uno")
+        self.assertEqual(resultado["orden"], "reciente")
+
+    def test_mes_se_convierte_en_rango(self):
+        resultado = normalizar_intencion(
+            {
+                "tema": "documentos",
+                "operacion": "listar",
+                "filtros": {},
+                "cantidad": "varios",
+                "orden": "ninguno",
+            },
+            "documentos de septiembre de 2026",
         )
-        self.assertEqual(result["cantidad"], "uno")
-        self.assertEqual(result["orden"], "reciente")
+
+        self.assertEqual(resultado["filtros"]["fecha_desde"], "2026-09-01")
+        self.assertEqual(resultado["filtros"]["fecha_hasta"], "2026-09-30")

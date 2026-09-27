@@ -1,9 +1,47 @@
 [
-  {"pregunta": "¿Cuántos clientes tenemos?", "tema": "clientes", "operacion": "contar"},
-  {"pregunta": "Lístame los clientes.", "tema": "clientes", "operacion": "listar"},
-  {"pregunta": "¿Qué equipos tiene el cliente?", "tema": "equipos", "operacion": "listar"},
-  {"pregunta": "Busca el equipo ABC123.", "tema": "equipos", "operacion": "listar"},
-  {"pregunta": "¿Cuántos diagnósticos están pendientes?", "tema": "diagnosticos", "operacion": "contar"},
-  {"pregunta": "Lístame los trabajos.", "tema": "trabajos", "operacion": "listar"},
-  {"pregunta": "Muéstrame el último trabajo.", "tema": "trabajos", "cantidad": "uno", "orden": "reciente"}
+  {
+    "pregunta": "¿Cuántos documentos hay?",
+    "tema": "documentos",
+    "operacion": "contar"
+  },
+  {
+    "pregunta": "Busca documentos que mencionen BMS",
+    "tema": "documentos",
+    "operacion": "listar"
+  },
+  {
+    "pregunta": "Encuentra archivos adjuntos que contengan sala eléctrica",
+    "tema": "adjuntos",
+    "operacion": "listar"
+  },
+  {
+    "pregunta": "Muéstrame carpetas de septiembre de 2026",
+    "tema": "carpetas",
+    "operacion": "listar"
+  },
+  {
+    "pregunta": "Último transmittal",
+    "tema": "transmittals",
+    "operacion": "detalle"
+  },
+  {
+    "pregunta": "Lista equipos eléctricos",
+    "tema": "equipos",
+    "operacion": "listar"
+  },
+  {
+    "pregunta": "¿Cuántas RDI están abiertas?",
+    "tema": "rdi",
+    "operacion": "contar"
+  },
+  {
+    "pregunta": "Tareas Gantt de BMS",
+    "tema": "gantt",
+    "operacion": "listar"
+  },
+  {
+    "pregunta": "Planos con revisión C",
+    "tema": "planos",
+    "operacion": "listar"
+  }
 ]

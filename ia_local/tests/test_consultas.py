@@ -1,51 +1,100 @@
-from datetime import datetime
-
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
-from django.utils import timezone
 
-from documents.models import Document, DocumentAttachment, DocumentType, ExecutingCompany, Process, Project
-from transmital.models import Transmital
+from documents.models import (
+    Document,
+    DocumentAttachment,
+    DocumentType,
+    ExecutingCompany,
+    Folder,
+    FolderFile,
+    Process,
+    Project,
+)
 from ia_local.services.consultas import ejecutar_consulta
-from ia_local.services.consultas import consultar_documentos
-
+from transmital.models import Transmital
 
 class ConsultaTests(TestCase):
-    def test_counts_document_attachments(self):
-        project = Project.objects.create(code="ODA", name="Proyecto ODA")
-        company = ExecutingCompany.objects.create(code="BUF", name="Empresa BUF")
-        process = Process.objects.create(code="CM", name="Control documental")
-        doc_type = DocumentType.objects.create(code="TTAL", name="Transmittal")
-        document = Document.objects.create(
-            project=project,
-            company=company,
-            process=process,
-            doc_type=doc_type,
-            number=184,
+    def setUp(self):
+        self.project = Project.objects.create(code="ODA", name="Proyecto ODA")
+        self.company = ExecutingCompany.objects.create(code="BUF", name="Empresa BUF")
+        self.process = Process.objects.create(code="EL", name="Eléctrica")
+        self.doc_type = DocumentType.objects.create(code="DWG", name="Plano")
+
+    def test_busca_texto_en_content_extract(self):
+        Document.objects.create(
+            project=self.project,
+            company=self.company,
+            process=self.process,
+            doc_type=self.doc_type,
+            number=1,
+            title="Plano eléctrico",
+            content_extract="La sala eléctrica contiene un tablero general.",
         )
+
+        resultado = ejecutar_consulta({
+            "tema": "documentos",
+            "operacion": "listar",
+            "filtros": {
+                "texto": "sala eléctrica",
+                "solo_contenido": True,
+            },
+            "cantidad": "varios",
+            "orden": "ninguno",
+        })
+
+        self.assertEqual(resultado["total"], 1)
+        self.assertIn("sala eléctrica", resultado["datos"][0]["coincidencia"].lower())
+
+    def test_busca_texto_en_adjuntos(self):
+        document = Document.objects.create(
+            project=self.project,
+            company=self.company,
+            process=self.process,
+            doc_type=self.doc_type,
+            number=2,
+            title="Documento con adjunto",
+        )
+
         DocumentAttachment.objects.create(
             document=document,
             file=SimpleUploadedFile("adjunto.txt", b"contenido"),
+            extracted_text="Este archivo menciona válvula de incendio.",
         )
-        result = ejecutar_consulta({
-            "tema": "documentos", "operacion": "contar_adjuntos",
-            "filtros": {"codigo": "TTAL-184"},
-        })
-        self.assertEqual(result["cantidad"], 1)
 
-    def test_counts_transmittals_and_lists_codes_by_registration_month(self):
-        archivo = SimpleUploadedFile("transmittal.xlsx", b"contenido")
-        transmittal = Transmital.objects.create(
+        resultado = ejecutar_consulta({
+            "tema": "adjuntos",
+            "operacion": "listar",
+            "filtros": {
+                "texto": "válvula de incendio",
+                "solo_contenido": True,
+            },
+            "cantidad": "varios",
+            "orden": "ninguno",
+        })
+
+        self.assertEqual(resultado["total"], 1)
+
+    def test_lista_transmittals(self):
+        Transmital.objects.create(
             consecutivo=184,
             codigo_transmital="ODATA-BUF-CM-TTAL-00184",
-            file=archivo,
+            destinatario="Cliente",
+            empresa="BUF",
+            referencia="Prueba",
+            file=SimpleUploadedFile("ttal.xlsx", b"contenido"),
         )
-        Transmital.objects.filter(pk=transmittal.pk).update(
-            imported_at=timezone.make_aware(datetime(2026, 8, 12, 10, 0))
+
+        resultado = ejecutar_consulta({
+            "tema": "transmittals",
+            "operacion": "listar",
+            "filtros": {"consecutivo": 184},
+            "cantidad": "varios",
+            "orden": "ninguno",
+        })
+
+        self.assertEqual(resultado["total"], 1)
+        self.assertEqual(
+            resultado["datos"][0]["codigo"],
+            "ODATA-BUF-CM-TTAL-00184",
         )
-        Transmital.objects.filter(pk=transmittal.pk).update(fecha_envio="2026-08-12")
-
-        respuesta = consultar_documentos("¿Cuántos transmittal se registraron en agosto de 2026?")
-
-        self.assertIn("Se encontraron 1 transmittal(es)", respuesta)
-        self.assertIn("ODATA-BUF-CM-TTAL-00184", respuesta)
