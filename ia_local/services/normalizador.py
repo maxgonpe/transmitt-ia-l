@@ -12,6 +12,17 @@ from ..domain.catalogo import (
 from .interprete import InterpretacionInvalida
 
 
+PROCESOS_DOCUMENTO = {
+    "ELECTRICO": "EL",
+    "ELÉCTRICO": "EL",
+    "ELECTRICA": "EL",
+    "ELÉCTRICA": "EL",
+    "ELECTRICIDAD": "EL",
+
+    "CORRIENTES DEBILES": "CD",
+    "CORRIENTES DÉBILES": "CD",
+}
+
 ESTADOS_DOCUMENTO = {
     "APROBADO": "APPROVED",
     "APROBADOS": "APPROVED",
@@ -117,6 +128,16 @@ def normalizar_intencion(raw, pregunta=""):
     if tema not in DOMINIOS:
         raise InterpretacionInvalida(f"Tema no autorizado: {tema}")
 
+    if tema == "documentos" and filtros.get("proceso"):
+        proceso = str(
+            filtros["proceso"]
+            ).strip().upper()
+
+        filtros["proceso"] = PROCESOS_DOCUMENTO.get(
+            proceso,
+            proceso
+        )
+
     if operacion not in OPERACIONES:
         operacion = "listar"
 
@@ -199,5 +220,7 @@ def normalizar_intencion(raw, pregunta=""):
         "cantidad": cantidad,
         "orden": orden,
     }
+
+
 
 
