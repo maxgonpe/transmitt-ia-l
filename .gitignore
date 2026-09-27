@@ -34,7 +34,8 @@ ENV/
 .vscode/
 *.swp
 *.swo
-
+*.zip
+*.rar
 # Sistema operativo
 .DS_Store
 Thumbs.db
