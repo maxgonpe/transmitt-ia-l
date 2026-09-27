@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TRANSMITT-IA-L | Test IA</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #f4f6f8;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #222;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 1400px;
+            margin: 30px auto;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        .panel {
+            background: white;
+            border: 1px solid #d9dde2;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            resize: vertical;
+            padding: 12px;
+            border: 1px solid #bbb;
+            border-radius: 5px;
+            font-size: 16px;
+            font-family: inherit;
+        }
+
+        button {
+            margin-top: 12px;
+            padding: 10px 22px;
+            border: 0;
+            border-radius: 5px;
+            background: #222;
+            color: white;
+            cursor: pointer;
+            font-size: 15px;
+        }
+
+        button:hover {
+            background: #444;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .box {
+            background: white;
+            border: 1px solid #d9dde2;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .box-title {
+            padding: 10px 15px;
+            background: #eceff2;
+            font-weight: bold;
+            border-bottom: 1px solid #d9dde2;
+        }
+
+        pre {
+            margin: 0;
+            padding: 15px;
+            min-height: 180px;
+            max-height: 500px;
+            overflow: auto;
+            background: #fafafa;
+            font-family: Consolas, Monaco, monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .respuesta {
+            min-height: 100px;
+            padding: 15px;
+            white-space: pre-wrap;
+            line-height: 1.5;
+        }
+
+        .status {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .ok {
+            color: green;
+        }
+
+        .error {
+            color: #b00020;
+        }
+
+        .loading {
+            color: #555;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .secondary {
+            background: #687078;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>TRANSMITT-IA-L</h1>
+
+    <div class="subtitle">
+        Consola de diagnóstico IA → Normalizador → ORM
+    </div>
+
+
+    <div class="panel">
+
+        <label for="pregunta">
+            <strong>Pregunta</strong>
+        </label>
+
+        <textarea
+            id="pregunta"
+            placeholder="Ejemplo: ¿Cuántos documentos aprobados hay?"
+        ></textarea>
+
+        <div class="toolbar">
+
+            <button
+                id="btnConsultar"
+                type="button"
+                onclick="consultarIA()"
+            >
+                Consultar
+            </button>
+
+            <button
+                type="button"
+                class="secondary"
+                onclick="limpiar()"
+            >
+                Limpiar
+            </button>
+
+            <button
+                type="button"
+                class="secondary"
+                onclick="copiarTodo()"
+            >
+                Copiar diagnóstico
+            </button>
+
+        </div>
+
+        <div id="status" class="status"></div>
+
+    </div>
+
+
+    <div class="grid">
+
+        <div class="box">
+
+            <div class="box-title">
+                1. JSON CRUDO DEVUELTO POR QWEN
+            </div>
+
+            <pre id="raw"></pre>
+
+        </div>
+
+
+        <div class="box">
+
+            <div class="box-title">
+                2. JSON NORMALIZADO POR DJANGO
+            </div>
+
+            <pre id="normalizado"></pre>
+
+        </div>
+
+
+        <div class="box">
+
+            <div class="box-title">
+                3. RESULTADO DEL ORM
+            </div>
+
+            <pre id="resultado"></pre>
+
+        </div>
+
+
+        <div class="box">
+
+            <div class="box-title">
+                4. RESPUESTA FINAL
+            </div>
+
+            <div
+                id="respuesta"
+                class="respuesta"
+            ></div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+function getCookie(name) {
+
+    let cookieValue = null;
+
+    if (document.cookie && document.cookie !== '') {
+
+        const cookies = document.cookie.split(';');
+
+        for (let i = 0; i < cookies.length; i++) {
+
+            const cookie = cookies[i].trim();
+
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+
+                cookieValue = decodeURIComponent(
+                    cookie.substring(name.length + 1)
+                );
+
+                break;
+            }
+        }
+    }
+
+    return cookieValue;
+}
+
+
+function formatoJSON(valor) {
+
+    if (valor === undefined || valor === null) {
+        return "";
+    }
+
+    try {
+
+        return JSON.stringify(
+            valor,
+            null,
+            2
+        );
+
+    } catch (error) {
+
+        return String(valor);
+    }
+}
+
+
+async function consultarIA() {
+
+    const pregunta =
+        document.getElementById("pregunta").value.trim();
+
+    const status =
+        document.getElementById("status");
+
+    const boton =
+        document.getElementById("btnConsultar");
+
+
+    if (!pregunta) {
+
+        status.className = "status error";
+
+        status.textContent =
+            "Escribe una pregunta.";
+
+        return;
+    }
+
+
+    boton.disabled = true;
+
+    status.className = "status loading";
+
+    status.textContent =
+        "Procesando consulta...";
+
+
+    document.getElementById("raw").textContent = "";
+
+    document.getElementById("normalizado").textContent = "";
+
+    document.getElementById("resultado").textContent = "";
+
+    document.getElementById("respuesta").textContent = "";
+
+
+    try {
+
+        const formData = new FormData();
+
+        formData.append(
+            "pregunta",
+            pregunta
+        );
+
+
+        const response = await fetch(
+            "/ia/test-json/",
+            {
+                method: "POST",
+
+                headers: {
+                    "X-CSRFToken": getCookie("csrftoken")
+                },
+
+                body: formData
+            }
+        );
+
+
+        const data = await response.json();
+
+
+        if (!response.ok || !data.ok) {
+
+            throw new Error(
+                data.error || "Error procesando la consulta."
+            );
+        }
+
+
+        document.getElementById("raw").textContent =
+            formatoJSON(data.raw);
+
+
+        document.getElementById("normalizado").textContent =
+            formatoJSON(data.normalizado);
+
+
+        document.getElementById("resultado").textContent =
+            formatoJSON(data.resultado);
+
+
+        document.getElementById("respuesta").textContent =
+            data.respuesta || "";
+
+
+        status.className = "status ok";
+
+        status.textContent =
+            "Consulta procesada correctamente.";
+
+    }
+
+    catch (error) {
+
+        status.className = "status error";
+
+        status.textContent =
+            error.message;
+
+    }
+
+    finally {
+
+        boton.disabled = false;
+    }
+}
+
+
+function limpiar() {
+
+    document.getElementById("pregunta").value = "";
+
+    document.getElementById("raw").textContent = "";
+
+    document.getElementById("normalizado").textContent = "";
+
+    document.getElementById("resultado").textContent = "";
+
+    document.getElementById("respuesta").textContent = "";
+
+    document.getElementById("status").textContent = "";
+}
+
+
+async function copiarTodo() {
+
+    const pregunta =
+        document.getElementById("pregunta").value;
+
+    const raw =
+        document.getElementById("raw").textContent;
+
+    const normalizado =
+        document.getElementById("normalizado").textContent;
+
+    const resultado =
+        document.getElementById("resultado").textContent;
+
+    const respuesta =
+        document.getElementById("respuesta").textContent;
+
+
+    const texto = `PREGUNTA
+==============================
+${pregunta}
+
+
+JSON QWEN
+==============================
+${raw}
+
+
+JSON NORMALIZADO
+==============================
+${normalizado}
+
+
+RESULTADO ORM
+==============================
+${resultado}
+
+
+RESPUESTA
+==============================
+${respuesta}
+`;
+
+
+    try {
+
+        await navigator.clipboard.writeText(texto);
+
+        const status =
+            document.getElementById("status");
+
+        status.className = "status ok";
+
+        status.textContent =
+            "Diagnóstico copiado al portapapeles.";
+
+    }
+
+    catch (error) {
+
+        alert(
+            "No fue posible copiar automáticamente."
+        );
+    }
+}
+
+
+document
+    .getElementById("pregunta")
+    .addEventListener(
+        "keydown",
+        function(event) {
+
+            if (
+                event.ctrlKey &&
+                event.key === "Enter"
+            ) {
+
+                consultarIA();
+            }
+        }
+    );
+
+</script>
+
+</body>
+</html>

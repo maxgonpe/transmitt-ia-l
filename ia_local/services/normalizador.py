@@ -11,6 +11,57 @@ from ..domain.catalogo import (
 )
 from .interprete import InterpretacionInvalida
 
+
+ESTADOS_DOCUMENTO = {
+    "APROBADO": "APPROVED",
+    "APROBADOS": "APPROVED",
+
+    "PENDIENTE": "PENDING",
+    "PENDIENTES": "PENDING",
+
+    "RECHAZADO": "REJECTED",
+    "RECHAZADOS": "REJECTED",
+
+    "EMITIDO": "ISSUED",
+    "EMITIDOS": "ISSUED",
+
+    "OBSOLETO": "OBSOLETE",
+    "OBSOLETOS": "OBSOLETE",
+
+    "BORRADOR": "DRAFT",
+    "BORRADORES": "DRAFT",
+
+    "PRELIMINAR": "PRELIMINAR",
+    "PRELIMINARES": "PRELIMINAR",
+
+    "SOLO INFO": "SOLO_INFO",
+    "SOLO-INFO": "SOLO_INFO",
+
+    "REVISION": "REVISION",
+    "REVISIÓN": "REVISION",
+
+    "REV Y CONOC": "REV_Y_CONOC",
+    "REV-Y-CONOC": "REV_Y_CONOC",
+
+    "CONOCIMIENTO": "CONOCIMIENTO",
+
+    "CONSTRUCCION": "CONSTRUCCION",
+    "CONSTRUCCIÓN": "CONSTRUCCION",
+
+    "COMENTARIOS": "COMENTARIOS",
+
+    "DEVUELTO COMENTARIOS": "DEVUELTO_COM",
+    "DEVUELTO-COMENTARIOS": "DEVUELTO_COM",
+
+    "CONOC CON CORREC": "CONOC_CORREC",
+    "CONOC-CON-CORREC": "CONOC_CORREC",
+
+    "CERTIFICADO": "CERTIFICADO",
+
+    "ENTREGA FINAL": "ENT_FINAL",
+    "ENTREGA-FINAL": "ENT_FINAL",
+}
+
 MESES = {
     "enero": 1, "febrero": 2, "marzo": 3, "abril": 4,
     "mayo": 5, "junio": 6, "julio": 7, "agosto": 8,
@@ -78,6 +129,19 @@ def normalizar_intencion(raw, pregunta=""):
         if clave in permitidos
     }
 
+    if tema == "documentos" and filtros.get("estado"):
+
+        estado = str(
+            filtros["estado"]
+        ).strip().upper()
+
+        filtros["estado"] = ESTADOS_DOCUMENTO.get(
+            estado,
+            estado
+        )
+
+    
+
     texto = _txt(pregunta)
 
     if tema in {"documentos", "adjuntos"} and any(
@@ -135,3 +199,5 @@ def normalizar_intencion(raw, pregunta=""):
         "cantidad": cantidad,
         "orden": orden,
     }
+
+
