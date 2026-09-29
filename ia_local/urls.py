@@ -9,4 +9,5 @@ urlpatterns = [
     path("consultar/", views.consulta_ia_json, name="consultar"),
     path("test/",views.index_test,name="index_test"),
     path("test-json/",views.consulta_test_json,name="test_json"),
+    path("diagnostico-documentos/", views.diagnostico_documentos, name="diagnostico_documentos", ),
 ]

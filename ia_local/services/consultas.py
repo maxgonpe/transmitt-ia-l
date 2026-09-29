@@ -90,11 +90,21 @@ def _documentos(intencion):
     if filtros.get("estado"):
         qs = qs.filter(status__icontains=filtros["estado"])
 
+
+    if filtros.get("estado_liberacion"):
+        qs = qs.filter(
+            estado_liberacion__iexact=filtros["estado_liberacion"])
+
+    if "sello_liberado_verificado" in filtros:
+        qs = qs.filter(
+            sello_liberado_verificado=filtros["sello_liberado_verificado"])
+
+
     if filtros.get("informado"):
         qs = qs.filter(informado__icontains=filtros["informado"])
 
     if filtros.get("revision"):
-        qs = qs.filter(revision__icontains=filtros["revision"])
+        qs = qs.filter(revision__iexact=filtros["revision"])
 
     if filtros.get("proyecto"):
         valor = filtros["proyecto"]

@@ -45,10 +45,45 @@ def serializar_documento_con_coincidencia(documento, termino=None):
         "codigo": documento.code,
         "titulo": documento.title,
         "revision": documento.revision,
+
+        # Estado documental
         "estado": documento.get_status_display(),
+
+        # Estado de liberación
+        "estado_liberacion": (
+            documento.get_estado_liberacion_display()
+        ),
+
+        "fecha_liberacion": (
+            documento.fecha_liberacion.isoformat()
+            if documento.fecha_liberacion
+            else None
+        ),
+
+        "fuente_liberacion": (
+            documento.get_fuente_liberacion_display()
+            if documento.fuente_liberacion
+            else ""
+        ),
+
+        "sello_liberado_verificado": (
+            documento.sello_liberado_verificado
+        ),
+
         "informado": documento.get_informado_display(),
-        "fecha": documento.date.isoformat() if documento.date else None,
-        "archivo": documento.file.name if documento.file else "",
+
+        "fecha": (
+            documento.date.isoformat()
+            if documento.date
+            else None
+        ),
+
+        "archivo": (
+            documento.file.name
+            if documento.file
+            else ""
+        ),
+
         "coincidencia": fragmento_coincidencia(
             documento.content_extract,
             termino,

@@ -17,7 +17,7 @@ CAMPOS_AUTORIZADOS = {
     "documentos": {
         "codigo", "texto", "solo_contenido", "estado", "informado",
         "proyecto", "compania", "proceso", "tipo_documento",
-        "revision", "fecha_desde", "fecha_hasta",
+        "revision", "fecha_desde", "fecha_hasta", "estado_liberacion",
     },
     "carpetas": {
         "codigo", "texto", "fecha_desde", "fecha_hasta",
