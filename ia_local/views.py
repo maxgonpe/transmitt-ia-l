@@ -9,6 +9,10 @@ from .services.consultas import ejecutar_consulta
 from .services.respuestas import construir_respuesta
 
 from .services.semantica import procesar_pregunta
+from .services.resolvedor import interpretar_con_memoria
+from .services.reglas_semanticas import (guardar_regla_exacta, guardar_regla_patron,)
+from .services.sugerencias_patron import sugerir_patron
+from .models import IAReglaSemantica
 
 @staff_member_required
 @require_http_methods(["GET", "POST"])
@@ -113,9 +117,9 @@ def consulta_test_json(request):
         # JSON CRUDO DEVUELTO POR QWEN
         # =============================================
 
-        raw = interpretar(
-            pregunta
-        )
+        interpretacion = interpretar_con_memoria(pregunta)
+        origen_interpretacion = interpretacion["origen"]
+        raw = interpretacion["intencion"]
 
 
         # =============================================
@@ -128,6 +132,10 @@ def consulta_test_json(request):
             pregunta=pregunta
         )
 
+        sugerencia_patron = sugerir_patron(
+            pregunta,
+            normalizado,
+        )
 
         # =============================================
         # CAPA 3
@@ -155,9 +163,13 @@ def consulta_test_json(request):
 
                 "pregunta": pregunta,
 
+                "origen_interpretacion": origen_interpretacion,
+
                 "raw": raw,
 
                 "normalizado": normalizado,
+
+                "sugerencia_patron": sugerencia_patron,
 
                 "resultado": resultado,
 
@@ -181,6 +193,146 @@ def consulta_test_json(request):
                 "ensure_ascii": False
             },
         )
+
+
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def guardar_regla_test_json(request):
+
+    pregunta = (
+        request.POST.get("pregunta")
+        or ""
+    ).strip()
+
+    intencion_json = (
+        request.POST.get("intencion")
+        or ""
+    ).strip()
+
+    if not pregunta:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "La pregunta está vacía.",
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    if not intencion_json:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "No existe intención normalizada para guardar.",
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    try:
+
+        import json
+
+        intencion = json.loads(
+            intencion_json
+        )
+
+    except json.JSONDecodeError:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "La intención recibida no es JSON válido.",
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    try:
+
+        # -------------------------------------------------
+        # Validación mínima de estructura
+        # -------------------------------------------------
+
+        if not isinstance(intencion, dict):
+
+            raise ValueError(
+                "La intención debe ser un objeto JSON."
+            )
+
+        tema = intencion.get("tema")
+
+        if not tema:
+
+            raise ValueError(
+                "La intención no contiene 'tema'."
+            )
+
+        # -------------------------------------------------
+        # Guardar / actualizar regla exacta
+        # -------------------------------------------------
+
+        regla, creada = guardar_regla_exacta(
+            pregunta=pregunta,
+            intencion=intencion,
+            observacion=(
+                "Regla guardada manualmente "
+                "desde la consola de diagnóstico."
+            ),
+        )
+
+        return JsonResponse(
+            {
+                "ok": True,
+
+                "creada": creada,
+
+                "regla": {
+                    "id": regla.pk,
+                    "pregunta": regla.pregunta,
+                    "tema": regla.tema,
+                    "operacion": regla.operacion,
+                    "filtros": regla.filtros,
+                    "cantidad": regla.cantidad,
+                    "orden": regla.orden,
+                },
+
+                "mensaje": (
+                    "Regla semántica creada correctamente."
+                    if creada
+                    else
+                    "Regla semántica actualizada correctamente."
+                ),
+            },
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    except Exception as exc:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": str(exc),
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+
 
 
 from django.http import JsonResponse
@@ -395,3 +547,205 @@ def diagnostico_documentos(request):
             "ensure_ascii": False,
         },
     )
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def guardar_patron_test_json(request):
+
+    patron = (
+        request.POST.get("patron")
+        or ""
+    ).strip()
+
+    intencion_json = (
+        request.POST.get("intencion")
+        or ""
+    ).strip()
+
+    if not patron:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "El patrón está vacío.",
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    if not intencion_json:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "La intención del patrón está vacía.",
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    try:
+
+        import json
+
+        intencion = json.loads(
+            intencion_json
+        )
+
+    except json.JSONDecodeError:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "La intención no contiene JSON válido.",
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    try:
+
+        if not isinstance(intencion, dict):
+
+            raise ValueError(
+                "La intención debe ser un objeto JSON."
+            )
+
+        if not intencion.get("tema"):
+
+            raise ValueError(
+                "La intención debe contener 'tema'."
+            )
+
+        regla, creada = guardar_regla_patron(
+            patron=patron,
+            intencion=intencion,
+            observacion=(
+                "Patrón guardado manualmente "
+                "desde la consola de diagnóstico."
+            ),
+        )
+
+        return JsonResponse(
+            {
+                "ok": True,
+
+                "creada": creada,
+
+                "regla": {
+                    "id": regla.pk,
+                    "tipo": regla.tipo,
+                    "patron": regla.pregunta,
+                    "patron_normalizado": regla.pregunta_normalizada,
+                    "tema": regla.tema,
+                    "operacion": regla.operacion,
+                    "filtros": regla.filtros,
+                    "cantidad": regla.cantidad,
+                    "orden": regla.orden,
+                },
+
+                "mensaje": (
+                    "Patrón semántico creado correctamente."
+                    if creada
+                    else
+                    "Patrón semántico actualizado correctamente."
+                ),
+            },
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    except Exception as exc:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": str(exc),
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+
+@staff_member_required
+@require_http_methods(["GET"])
+def reglas_semanticas(request):
+
+    reglas = (
+        IAReglaSemantica.objects
+        .all()
+        .order_by(
+            "-activa",
+            "tipo",
+            "-veces_usada",
+            "-updated_at",
+        )
+    )
+
+    return render(
+        request,
+        "ia_local/reglas_semanticas.html",
+        {
+            "reglas": reglas,
+        },
+    )
+
+
+@staff_member_required
+@require_http_methods(["POST"])
+def cambiar_estado_regla(request, pk):
+
+    try:
+
+        regla = IAReglaSemantica.objects.get(
+            pk=pk
+        )
+
+        regla.activa = not regla.activa
+
+        regla.save(
+            update_fields=[
+                "activa",
+                "updated_at",
+            ]
+        )
+
+        return JsonResponse(
+            {
+                "ok": True,
+                "id": regla.pk,
+                "activa": regla.activa,
+                "mensaje": (
+                    "Regla activada."
+                    if regla.activa
+                    else
+                    "Regla desactivada."
+                ),
+            },
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    except IAReglaSemantica.DoesNotExist:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": "La regla no existe.",
+            },
+            status=404,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )

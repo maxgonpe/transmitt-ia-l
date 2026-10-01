@@ -1,12 +1,19 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>TRANSMITT-IA-L | Test IA</title>
 
     <style>
+
         * {
             box-sizing: border-box;
         }
@@ -80,9 +87,11 @@
         }
 
         @media (max-width: 900px) {
+
             .grid {
                 grid-template-columns: 1fr;
             }
+
         }
 
         .box {
@@ -145,151 +154,384 @@
         .secondary {
             background: #687078;
         }
+
+        /*
+        ---------------------------------------------------------
+        ORIGEN DE LA INTERPRETACIÓN
+        ---------------------------------------------------------
+        */
+
+        .origen-panel {
+            margin-bottom: 20px;
+            background: white;
+            border: 1px solid #d9dde2;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .origen-contenido {
+            padding: 15px;
+            font-family: Consolas, Monaco, monospace;
+            font-weight: bold;
+            font-size: 15px;
+        }
+
+        .origen-qwen {
+            color: #555;
+        }
+
+        .origen-memoria {
+            color: green;
+        }
+
     </style>
+
 </head>
+
 
 <body>
 
+
 <div class="container">
+
 
     <h1>TRANSMITT-IA-L</h1>
 
+
     <div class="subtitle">
-        Consola de diagnóstico IA → Normalizador → ORM
+
+        Consola de diagnóstico IA → Memoria → Normalizador → ORM
+
     </div>
 
 
+    <!-- =====================================================
+         FORMULARIO DE CONSULTA
+         ===================================================== -->
+
     <div class="panel">
 
+
         <label for="pregunta">
+
             <strong>Pregunta</strong>
+
         </label>
+
 
         <textarea
             id="pregunta"
             placeholder="Ejemplo: ¿Cuántos documentos aprobados hay?"
         ></textarea>
 
+
         <div class="toolbar">
+
 
             <button
                 id="btnConsultar"
                 type="button"
                 onclick="consultarIA()"
             >
+
                 Consultar
+
             </button>
+
+
+            <button
+                id="btnGuardarRegla"
+                type="button"
+                class="secondary"
+                onclick="guardarComoRegla()"
+                disabled
+            >
+                Guardar como regla
+            </button>
+
 
             <button
                 type="button"
                 class="secondary"
                 onclick="limpiar()"
             >
+
                 Limpiar
+
             </button>
+
 
             <button
                 type="button"
                 class="secondary"
                 onclick="copiarTodo()"
             >
+
                 Copiar diagnóstico
+
             </button>
+
 
         </div>
 
-        <div id="status" class="status"></div>
+
+        <div
+            id="status"
+            class="status"
+        ></div>
+
 
     </div>
 
 
+    <!-- =====================================================
+         ORIGEN DE INTERPRETACIÓN
+         ===================================================== -->
+
+    <div class="origen-panel">
+
+
+        <div class="box-title">
+
+            ORIGEN DE LA INTERPRETACIÓN
+
+        </div>
+
+
+        <div
+            id="origenInterpretacion"
+            class="origen-contenido"
+        >
+
+            -
+
+        </div>
+
+
+    </div>
+
+    <!-- ========================================================
+         NEUVO
+         ====================================================== -->
+
+    <div class="panel">
+
+    <h3>Patrón semántico sugerido</h3>
+
+    <p>
+        Revisa la propuesta antes de guardarla.
+        El sistema nunca la incorpora automáticamente.
+    </p>
+
+    <label for="patronSemantico">
+        <strong>Patrón</strong>
+    </label>
+
+    <textarea
+        id="patronSemantico"
+        placeholder="Ejemplo: Muéstrame los documentos candidatos a revisión {REVISION}"
+    ></textarea>
+
+    <br><br>
+
+    <label for="intencionPatron">
+        <strong>Intención del patrón</strong>
+    </label>
+
+    <textarea
+        id="intencionPatron"
+        placeholder='Ejemplo:
+    {
+      "tema": "documentos",
+      "operacion": "listar",
+      "filtros": {
+        "revision": "CANDIDATO REV {REVISION}"
+      },
+      "cantidad": "varios",
+      "orden": "ninguno"
+    }'
+        ></textarea>
+
+        <button
+            id="btnGuardarPatron"
+            type="button"
+            onclick="guardarPatron()"
+            disabled
+        >
+            Aprobar y guardar patrón
+        </button>
+
+    </div>
+
+
+
+    <!-- =====================================================
+         DIAGNÓSTICO
+         ===================================================== -->
+
     <div class="grid">
+
+
+        <!-- INTENCIÓN ORIGINAL -->
 
         <div class="box">
 
+
             <div class="box-title">
-                1. JSON CRUDO DEVUELTO POR QWEN
+
+                1. INTENCIÓN ORIGINAL
+
             </div>
+
 
             <pre id="raw"></pre>
 
+
         </div>
 
 
+        <!-- NORMALIZADO -->
+
         <div class="box">
 
+
             <div class="box-title">
+
                 2. JSON NORMALIZADO POR DJANGO
+
             </div>
+
 
             <pre id="normalizado"></pre>
 
+
         </div>
 
 
+        <!-- ORM -->
+
         <div class="box">
 
+
             <div class="box-title">
+
                 3. RESULTADO DEL ORM
+
             </div>
+
 
             <pre id="resultado"></pre>
 
+
         </div>
 
 
+        <!-- RESPUESTA -->
+
         <div class="box">
 
+
             <div class="box-title">
+
                 4. RESPUESTA FINAL
+
             </div>
+
 
             <div
                 id="respuesta"
                 class="respuesta"
             ></div>
 
+
         </div>
 
+
     </div>
+
 
 </div>
 
 
 <script>
 
+
+/*
+=========================================================
+CSRF
+=========================================================
+*/
+
 function getCookie(name) {
 
     let cookieValue = null;
 
-    if (document.cookie && document.cookie !== '') {
 
-        const cookies = document.cookie.split(';');
+    if (
+        document.cookie &&
+        document.cookie !== ''
+    ) {
 
-        for (let i = 0; i < cookies.length; i++) {
+        const cookies =
+            document.cookie.split(';');
 
-            const cookie = cookies[i].trim();
 
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        for (
+            let i = 0;
+            i < cookies.length;
+            i++
+        ) {
 
-                cookieValue = decodeURIComponent(
-                    cookie.substring(name.length + 1)
-                );
+            const cookie =
+                cookies[i].trim();
+
+
+            if (
+                cookie.substring(
+                    0,
+                    name.length + 1
+                ) ===
+                (name + '=')
+            ) {
+
+                cookieValue =
+                    decodeURIComponent(
+                        cookie.substring(
+                            name.length + 1
+                        )
+                    );
 
                 break;
+
             }
+
         }
+
     }
 
+
     return cookieValue;
+
 }
 
 
+/*
+=========================================================
+FORMATEO JSON
+=========================================================
+*/
+
 function formatoJSON(valor) {
 
-    if (valor === undefined || valor === null) {
+    if (
+        valor === undefined ||
+        valor === null
+    ) {
+
         return "";
+
     }
+
 
     try {
 
@@ -299,56 +541,200 @@ function formatoJSON(valor) {
             2
         );
 
-    } catch (error) {
+    }
+
+    catch (error) {
 
         return String(valor);
+
     }
+
 }
 
 
+/*
+=========================================================
+MOSTRAR ORIGEN
+=========================================================
+*/
+
+function mostrarOrigen(origen) {
+
+    const elemento =
+        document.getElementById(
+            "origenInterpretacion"
+        );
+
+
+    elemento.className =
+        "origen-contenido";
+
+
+    if (!origen) {
+
+        elemento.textContent = "-";
+
+        return;
+
+    }
+
+
+    if (
+        origen ===
+        "REGLA_SEMANTICA"
+    ) {
+
+        elemento.classList.add(
+            "origen-memoria"
+        );
+
+        elemento.textContent =
+            "REGLA_SEMANTICA — conocimiento persistente";
+
+        return;
+
+    }
+
+
+    if (
+        origen ===
+        "REGLA_PATRON"
+    ) {
+
+        elemento.classList.add(
+            "origen-memoria"
+        );
+
+        elemento.textContent =
+            "REGLA_PATRON — patrón semántico aprendido";
+
+        return;
+
+    }
+
+
+
+    if (
+        origen === "QWEN"
+    ) {
+
+        elemento.classList.add(
+            "origen-qwen"
+        );
+
+        elemento.textContent =
+            "QWEN — interpretación del modelo";
+
+        return;
+
+    }
+
+
+    elemento.textContent =
+        origen;
+
+}
+
+
+/*
+=========================================================
+CONSULTAR IA
+=========================================================
+*/
+
 async function consultarIA() {
 
+
     const pregunta =
-        document.getElementById("pregunta").value.trim();
+        document
+            .getElementById("pregunta")
+            .value
+            .trim();
+
 
     const status =
-        document.getElementById("status");
+        document.getElementById(
+            "status"
+        );
+
 
     const boton =
-        document.getElementById("btnConsultar");
+        document.getElementById(
+            "btnConsultar"
+        );
 
 
     if (!pregunta) {
 
-        status.className = "status error";
+        status.className =
+            "status error";
 
         status.textContent =
             "Escribe una pregunta.";
 
         return;
+
     }
 
 
     boton.disabled = true;
 
-    status.className = "status loading";
+
+    status.className =
+        "status loading";
+
 
     status.textContent =
         "Procesando consulta...";
 
 
-    document.getElementById("raw").textContent = "";
+    /*
+    Limpiar resultado anterior
+    */
 
-    document.getElementById("normalizado").textContent = "";
+    mostrarOrigen(null);
 
-    document.getElementById("resultado").textContent = "";
 
-    document.getElementById("respuesta").textContent = "";
+    document
+        .getElementById(
+            "patronSemantico"
+        )
+        .value = "";
+
+
+    document
+        .getElementById(
+            "intencionPatron"
+        )
+        .value = "";
+
+
+    document
+        .getElementById("raw")
+        .textContent = "";
+
+
+    document
+        .getElementById("normalizado")
+        .textContent = "";
+
+
+    document
+        .getElementById("resultado")
+        .textContent = "";
+
+
+    document
+        .getElementById("respuesta")
+        .textContent = "";
 
 
     try {
 
-        const formData = new FormData();
+
+        const formData =
+            new FormData();
+
 
         formData.append(
             "pregunta",
@@ -356,102 +742,707 @@ async function consultarIA() {
         );
 
 
-        const response = await fetch(
-            "/ia/test-json/",
-            {
-                method: "POST",
+        const response =
+            await fetch(
+                "/ia/test-json/",
+                {
+                    method: "POST",
 
-                headers: {
-                    "X-CSRFToken": getCookie("csrftoken")
-                },
+                    headers: {
+                        "X-CSRFToken":
+                            getCookie(
+                                "csrftoken"
+                            )
+                    },
 
-                body: formData
-            }
-        );
+                    body: formData
+                }
+            );
 
 
-        const data = await response.json();
+        const data =
+            await response.json();
 
 
-        if (!response.ok || !data.ok) {
+        if (
+            !response.ok ||
+            !data.ok
+        ) {
 
             throw new Error(
-                data.error || "Error procesando la consulta."
+                data.error ||
+                "Error procesando la consulta."
             );
+
         }
 
 
-        document.getElementById("raw").textContent =
-            formatoJSON(data.raw);
+        /*
+        -------------------------------------------------
+        ORIGEN
+        -------------------------------------------------
+        */
+
+        mostrarOrigen(
+            data.origen_interpretacion
+        );
 
 
-        document.getElementById("normalizado").textContent =
-            formatoJSON(data.normalizado);
+        /*
+        -------------------------------------------------
+        INTENCIÓN ORIGINAL
+        -------------------------------------------------
+        */
+
+        document
+            .getElementById("raw")
+            .textContent =
+            formatoJSON(
+                data.raw
+            );
 
 
-        document.getElementById("resultado").textContent =
-            formatoJSON(data.resultado);
+        /*
+        -------------------------------------------------
+        NORMALIZADOR
+        -------------------------------------------------
+        */
+
+        document
+            .getElementById("normalizado")
+            .textContent =
+            formatoJSON(
+                data.normalizado
+            );
+
+            ultimaIntencionNormalizada =
+                data.normalizado;
 
 
-        document.getElementById("respuesta").textContent =
+            document
+                .getElementById(
+                    "btnGuardarRegla"
+                )
+                .disabled = false;
+
+
+            /*
+            -------------------------------------------------
+            IA-SEM003
+            SUGERENCIA AUTOMÁTICA DE PATRÓN
+            -------------------------------------------------
+            */
+
+            if (data.sugerencia_patron) {
+
+                document
+                    .getElementById(
+                        "patronSemantico"
+                    )
+                    .value =
+                    data.sugerencia_patron.patron || "";
+
+
+                document
+                    .getElementById(
+                        "intencionPatron"
+                    )
+                    .value =
+                    formatoJSON(
+                        data.sugerencia_patron.intencion
+                    );
+
+
+                const btnGuardarPatron =
+                    document.getElementById(
+                        "btnGuardarPatron"
+                    );
+
+
+                if (
+                    data.sugerencia_patron.ya_existe
+                ) {
+
+                    btnGuardarPatron.disabled = true;
+
+                    btnGuardarPatron.textContent =
+                        "Patrón ya existente";
+
+
+                    status.className =
+                        "status ok";
+
+
+                    status.textContent =
+                        "El patrón sugerido ya existe"
+                        + " (ID "
+                        + data.sugerencia_patron.regla_existente_id
+                        + ").";
+
+                }
+
+                else {
+
+                    btnGuardarPatron.disabled = false;
+
+                    btnGuardarPatron.textContent =
+                        "Aprobar y guardar patrón";
+
+                }
+
+            }
+
+            else {
+
+                document
+                    .getElementById(
+                        "patronSemantico"
+                    )
+                    .value = "";
+
+
+                document
+                    .getElementById(
+                        "intencionPatron"
+                    )
+                    .value = "";
+
+
+                document
+                    .getElementById(
+                        "btnGuardarPatron"
+                    )
+                    .disabled = true;
+
+
+                document
+                    .getElementById(
+                        "btnGuardarPatron"
+                    )
+                    .textContent =
+                    "Aprobar y guardar patrón";
+
+            }
+
+        /*
+        -------------------------------------------------
+        ORM
+        -------------------------------------------------
+        */
+
+        document
+            .getElementById("resultado")
+            .textContent =
+            formatoJSON(
+                data.resultado
+            );
+
+
+        /*
+        -------------------------------------------------
+        RESPUESTA
+        -------------------------------------------------
+        */
+
+        document
+            .getElementById("respuesta")
+            .textContent =
             data.respuesta || "";
 
 
-        status.className = "status ok";
+        status.className =
+            "status ok";
+
 
         status.textContent =
             "Consulta procesada correctamente.";
 
     }
 
+
     catch (error) {
 
-        status.className = "status error";
+
+        status.className =
+            "status error";
+
 
         status.textContent =
             error.message;
 
     }
 
+
+    finally {
+
+
+        boton.disabled = false;
+
+    }
+
+}
+
+
+
+async function guardarComoRegla() {
+
+
+    const pregunta =
+        document
+            .getElementById("pregunta")
+            .value
+            .trim();
+
+
+    const status =
+        document.getElementById(
+            "status"
+        );
+
+
+    const boton =
+        document.getElementById(
+            "btnGuardarRegla"
+        );
+
+
+    if (!pregunta) {
+
+        status.className =
+            "status error";
+
+        status.textContent =
+            "No hay pregunta para guardar.";
+
+        return;
+
+    }
+
+
+    if (!ultimaIntencionNormalizada) {
+
+        status.className =
+            "status error";
+
+        status.textContent =
+            "No existe una interpretación normalizada para guardar.";
+
+        return;
+
+    }
+
+
+    boton.disabled = true;
+
+
+    status.className =
+        "status loading";
+
+
+    status.textContent =
+        "Guardando regla semántica...";
+
+
+    try {
+
+
+        const formData =
+            new FormData();
+
+
+        formData.append(
+            "pregunta",
+            pregunta
+        );
+
+
+        formData.append(
+            "intencion",
+            JSON.stringify(
+                ultimaIntencionNormalizada
+            )
+        );
+
+
+        const response =
+            await fetch(
+                "/ia/test-guardar-regla/",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "X-CSRFToken":
+                            getCookie(
+                                "csrftoken"
+                            )
+                    },
+
+                    body: formData
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (
+            !response.ok ||
+            !data.ok
+        ) {
+
+            throw new Error(
+                data.error ||
+                "No fue posible guardar la regla."
+            );
+
+        }
+
+
+        status.className =
+            "status ok";
+
+
+        status.textContent =
+            data.mensaje;
+
+
+    }
+
+
+    catch (error) {
+
+
+        status.className =
+            "status error";
+
+
+        status.textContent =
+            error.message;
+
+    }
+
+
+    finally {
+
+
+        boton.disabled = false;
+
+    }
+
+}
+
+async function guardarPatron() {
+
+    const patron =
+        document
+            .getElementById("patronSemantico")
+            .value
+            .trim();
+
+    const intencion =
+        document
+            .getElementById("intencionPatron")
+            .value
+            .trim();
+
+    const status =
+        document.getElementById("status");
+
+    const boton =
+        document.getElementById(
+            "btnGuardarPatron"
+        );
+
+
+    if (!patron) {
+
+        status.className =
+            "status error";
+
+        status.textContent =
+            "Debes escribir un patrón.";
+
+        return;
+
+    }
+
+
+    if (!intencion) {
+
+        status.className =
+            "status error";
+
+        status.textContent =
+            "Debes escribir la intención del patrón.";
+
+        return;
+
+    }
+
+
+    boton.disabled = true;
+
+    status.className =
+        "status loading";
+
+    status.textContent =
+        "Guardando patrón semántico...";
+
+
+    try {
+
+        /*
+        Validación JSON local antes de enviar.
+        */
+
+        JSON.parse(intencion);
+
+
+        const formData =
+            new FormData();
+
+
+        formData.append(
+            "patron",
+            patron
+        );
+
+
+        formData.append(
+            "intencion",
+            intencion
+        );
+
+
+        const response =
+            await fetch(
+                "/ia/test-guardar-patron/",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "X-CSRFToken":
+                            getCookie(
+                                "csrftoken"
+                            )
+                    },
+
+                    body: formData
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (
+            !response.ok ||
+            !data.ok
+        ) {
+
+            throw new Error(
+                data.error ||
+                "No fue posible guardar el patrón."
+            );
+
+        }
+
+
+        status.className =
+            "status ok";
+
+        status.textContent =
+            data.mensaje;
+
+    }
+
+
+    catch (error) {
+
+        status.className =
+            "status error";
+
+        if (
+            error instanceof SyntaxError
+        ) {
+
+            status.textContent =
+                "La intención del patrón no contiene JSON válido.";
+
+        }
+
+        else {
+
+            status.textContent =
+                error.message;
+
+        }
+
+    }
+
+
     finally {
 
         boton.disabled = false;
+
     }
+
 }
 
+
+
+
+
+/*
+=========================================================
+LIMPIAR
+=========================================================
+*/
 
 function limpiar() {
 
-    document.getElementById("pregunta").value = "";
+    ultimaIntencionNormalizada = null;
 
-    document.getElementById("raw").textContent = "";
+    document
+        .getElementById(
+            "btnGuardarRegla"
+        )
+        .disabled = true;
 
-    document.getElementById("normalizado").textContent = "";
 
-    document.getElementById("resultado").textContent = "";
+    document
+        .getElementById("pregunta")
+        .value = "";
 
-    document.getElementById("respuesta").textContent = "";
 
-    document.getElementById("status").textContent = "";
+    mostrarOrigen(null);
+
+
+    document
+        .getElementById(
+            "patronSemantico"
+        )
+        .value = "";
+
+
+    document
+        .getElementById(
+            "intencionPatron"
+        )
+        .value = "";
+
+
+    document
+        .getElementById(
+            "btnGuardarPatron"
+        )
+        .disabled = true;
+
+
+    document
+        .getElementById(
+            "btnGuardarPatron"
+        )
+        .textContent =
+        "Aprobar y guardar patrón";
+
+
+    document
+        .getElementById("raw")
+        .textContent = "";
+
+
+    document
+        .getElementById("normalizado")
+        .textContent = "";
+
+
+    document
+        .getElementById("resultado")
+        .textContent = "";
+
+
+    document
+        .getElementById("respuesta")
+        .textContent = "";
+
+
+    document
+        .getElementById("status")
+        .textContent = "";
+
 }
 
 
+/*
+=========================================================
+COPIAR DIAGNÓSTICO
+=========================================================
+*/
+
 async function copiarTodo() {
 
+
     const pregunta =
-        document.getElementById("pregunta").value;
+        document
+            .getElementById("pregunta")
+            .value;
+
+
+    const origen =
+        document
+            .getElementById(
+                "origenInterpretacion"
+            )
+            .textContent;
+
 
     const raw =
-        document.getElementById("raw").textContent;
+        document
+            .getElementById("raw")
+            .textContent;
+
 
     const normalizado =
-        document.getElementById("normalizado").textContent;
+        document
+            .getElementById(
+                "normalizado"
+            )
+            .textContent;
+
 
     const resultado =
-        document.getElementById("resultado").textContent;
+        document
+            .getElementById(
+                "resultado"
+            )
+            .textContent;
+
 
     const respuesta =
-        document.getElementById("respuesta").textContent;
+        document
+            .getElementById(
+                "respuesta"
+            )
+            .textContent;
+
+
+    const patronSugerido =
+        document
+            .getElementById(
+                "patronSemantico"
+            )
+            .value;
+
+
+    const intencionPatron =
+        document
+            .getElementById(
+                "intencionPatron"
+            )
+            .value;
 
 
     const texto = `PREGUNTA
@@ -459,7 +1450,12 @@ async function copiarTodo() {
 ${pregunta}
 
 
-JSON QWEN
+ORIGEN INTERPRETACIÓN
+==============================
+${origen}
+
+
+INTENCIÓN ORIGINAL
 ==============================
 ${raw}
 
@@ -477,31 +1473,60 @@ ${resultado}
 RESPUESTA
 ==============================
 ${respuesta}
+
+
+PATRÓN SUGERIDO
+==============================
+${patronSugerido}
+
+
+INTENCIÓN DEL PATRÓN
+==============================
+${intencionPatron}
 `;
 
 
     try {
 
-        await navigator.clipboard.writeText(texto);
+
+        await navigator
+            .clipboard
+            .writeText(texto);
+
 
         const status =
-            document.getElementById("status");
+            document.getElementById(
+                "status"
+            );
 
-        status.className = "status ok";
+
+        status.className =
+            "status ok";
+
 
         status.textContent =
             "Diagnóstico copiado al portapapeles.";
 
     }
 
+
     catch (error) {
+
 
         alert(
             "No fue posible copiar automáticamente."
         );
+
     }
+
 }
 
+
+/*
+=========================================================
+CTRL + ENTER
+=========================================================
+*/
 
 document
     .getElementById("pregunta")
@@ -515,11 +1540,16 @@ document
             ) {
 
                 consultarIA();
+
             }
+
         }
     );
 
+
 </script>
 
+
 </body>
+
 </html>
