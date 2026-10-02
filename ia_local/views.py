@@ -1,18 +1,64 @@
+import json
+
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 
-from .services.interprete import interpretar
-from .services.normalizador import normalizar_intencion
-from .services.consultas import ejecutar_consulta
-from .services.respuestas import construir_respuesta
-
-from .services.semantica import procesar_pregunta
-from .services.resolvedor import interpretar_con_memoria
-from .services.reglas_semanticas import (guardar_regla_exacta, guardar_regla_patron,)
-from .services.sugerencias_patron import sugerir_patron
 from .models import IAReglaSemantica
+from .services.formateador_resultados import formatear_resultado_motor
+from .services.motor_generico import ejecutar_pregunta
+from .services.reglas_semanticas import (
+    guardar_regla_exacta,
+    guardar_regla_patron,
+)
+from .services.sugerencias_patron import sugerir_patron
+
+
+def _ejecutar_consulta_ia(pregunta, limite=20):
+    """
+    IA-CORE022.
+
+    Punto único de entrada para las vistas web/API.
+    Reutiliza exactamente el motor genérico validado
+    en CORE018 y el formateador de CORE021.
+    """
+    resultado_motor = ejecutar_pregunta(
+        pregunta,
+        limite=limite,
+    )
+
+    respuesta_estructurada = formatear_resultado_motor(
+        resultado_motor
+    )
+
+    # El motor contiene instancias Django en "objetos".
+    # Para respuestas JSON y diagnóstico exponemos solo
+    # información serializable y útil.
+    diagnostico = {
+        "origen": resultado_motor.get("origen"),
+        "tema": resultado_motor.get("tema"),
+        "modelo": resultado_motor.get("modelo"),
+        "operacion": resultado_motor.get("operacion"),
+        "cantidad": resultado_motor.get("cantidad"),
+        "orden": resultado_motor.get("orden"),
+        "filtros_orm": resultado_motor.get("filtros_orm"),
+        "total": resultado_motor.get("total"),
+        "limite": resultado_motor.get("limite"),
+    }
+
+    return {
+        "motor": resultado_motor,
+        "diagnostico": diagnostico,
+        "respuesta_estructurada": respuesta_estructurada,
+        "respuesta_texto": json.dumps(
+            respuesta_estructurada,
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        ),
+    }
+
 
 @staff_member_required
 @require_http_methods(["GET", "POST"])
@@ -20,6 +66,7 @@ def consulta_ia(request):
     contexto = {
         "pregunta": "",
         "respuesta": "",
+        "respuesta_estructurada": None,
         "plan": None,
         "resultado": None,
         "error": "",
@@ -33,10 +80,15 @@ def consulta_ia(request):
             contexto["error"] = "Escribe una pregunta."
         else:
             try:
-                salida = procesar_pregunta(pregunta)
-                contexto["plan"] = salida["plan"]
-                contexto["resultado"] = salida["resultado"]
-                contexto["respuesta"] = salida["resultado"]["respuesta"]
+                salida = _ejecutar_consulta_ia(pregunta)
+
+                contexto["plan"] = salida["diagnostico"]
+                contexto["resultado"] = salida["diagnostico"]
+                contexto["respuesta_estructurada"] = (
+                    salida["respuesta_estructurada"]
+                )
+                contexto["respuesta"] = salida["respuesta_texto"]
+
             except Exception as exc:
                 contexto["error"] = str(exc)
 
@@ -46,6 +98,7 @@ def consulta_ia(request):
         contexto,
     )
 
+
 @staff_member_required
 @require_http_methods(["POST"])
 def consulta_ia_json(request):
@@ -53,26 +106,43 @@ def consulta_ia_json(request):
 
     if not pregunta:
         return JsonResponse(
-            {"ok": False, "error": "La pregunta está vacía."},
+            {
+                "ok": False,
+                "error": "La pregunta está vacía.",
+            },
             status=400,
             json_dumps_params={"ensure_ascii": False},
         )
 
     try:
-        salida = procesar_pregunta(pregunta)
+        salida = _ejecutar_consulta_ia(pregunta)
+        diagnostico = salida["diagnostico"]
+
         return JsonResponse(
             {
                 "ok": True,
                 "pregunta": pregunta,
-                "plan": salida["plan"],
-                "resultado": salida["resultado"],
-                "respuesta": salida["resultado"]["respuesta"],
+                "origen": diagnostico["origen"],
+                "tema": diagnostico["tema"],
+                "modelo": diagnostico["modelo"],
+                "operacion": diagnostico["operacion"],
+                "intencion": salida["motor"].get("intencion"),
+                "filtros_orm": diagnostico["filtros_orm"],
+                "total": diagnostico["total"],
+                "respuesta": salida["respuesta_texto"],
+                "respuesta_estructurada": (
+                    salida["respuesta_estructurada"]
+                ),
             },
             json_dumps_params={"ensure_ascii": False},
         )
+
     except Exception as exc:
         return JsonResponse(
-            {"ok": False, "error": str(exc)},
+            {
+                "ok": False,
+                "error": str(exc),
+            },
             status=400,
             json_dumps_params={"ensure_ascii": False},
         )
@@ -89,19 +159,16 @@ def index_test(request):
 @staff_member_required
 @require_http_methods(["POST"])
 def consulta_test_json(request):
-
     pregunta = (
         request.POST.get("pregunta")
         or ""
     ).strip()
 
-
     if not pregunta:
-
         return JsonResponse(
             {
                 "ok": False,
-                "error": "La pregunta está vacía."
+                "error": "La pregunta está vacía.",
             },
             status=400,
             json_dumps_params={
@@ -109,80 +176,61 @@ def consulta_test_json(request):
             },
         )
 
-
     try:
-
-        # =============================================
-        # CAPA 1
-        # JSON CRUDO DEVUELTO POR QWEN
-        # =============================================
-
-        interpretacion = interpretar_con_memoria(pregunta)
-        origen_interpretacion = interpretacion["origen"]
-        raw = interpretacion["intencion"]
-
-
-        # =============================================
-        # CAPA 2
-        # NORMALIZACIÓN DJANGO
-        # =============================================
-
-        normalizado = normalizar_intencion(
-            raw,
-            pregunta=pregunta
+        salida = _ejecutar_consulta_ia(
+            pregunta
         )
 
+        motor = salida["motor"]
+        diagnostico = salida["diagnostico"]
+
+        raw = (
+            motor.get("intencion_raw")
+            or motor.get("intencion")
+        )
+
+        normalizado = motor.get(
+            "intencion"
+        )
+
+        # Conservamos la sugerencia manual de patrones
+        # de la consola de diagnóstico.
         sugerencia_patron = sugerir_patron(
             pregunta,
             normalizado,
         )
 
-        # =============================================
-        # CAPA 3
-        # CONSULTA ORM
-        # =============================================
-
-        resultado = ejecutar_consulta(
-            normalizado
-        )
-
-
-        # =============================================
-        # CAPA 4
-        # RESPUESTA PARA USUARIO
-        # =============================================
-
-        respuesta = construir_respuesta(
-            resultado
-        )
-
-
         return JsonResponse(
             {
                 "ok": True,
-
                 "pregunta": pregunta,
 
-                "origen_interpretacion": origen_interpretacion,
-
+                # Nombres conservados para compatibilidad
+                # con index_test.html actual.
+                "origen_interpretacion":
+                    diagnostico["origen"],
                 "raw": raw,
-
                 "normalizado": normalizado,
+                "sugerencia_patron":
+                    sugerencia_patron,
 
-                "sugerencia_patron": sugerencia_patron,
+                # Resultado ORM serializable para diagnóstico.
+                "resultado": diagnostico,
 
-                "resultado": resultado,
+                # El JS actual espera texto en "respuesta".
+                "respuesta":
+                    salida["respuesta_texto"],
 
-                "respuesta": respuesta,
+                # Disponible para futuros consumidores/API.
+                "respuesta_estructurada":
+                    salida["respuesta_estructurada"],
             },
             json_dumps_params={
                 "ensure_ascii": False
             },
         )
 
-
     except Exception as exc:
-
         return JsonResponse(
             {
                 "ok": False,
@@ -193,7 +241,6 @@ def consulta_test_json(request):
                 "ensure_ascii": False
             },
         )
-
 
 
 
@@ -238,8 +285,6 @@ def guardar_regla_test_json(request):
         )
 
     try:
-
-        import json
 
         intencion = json.loads(
             intencion_json
@@ -335,7 +380,6 @@ def guardar_regla_test_json(request):
 
 
 
-from django.http import JsonResponse
 from documents.models import Document
 
 
@@ -590,8 +634,6 @@ def guardar_patron_test_json(request):
         )
 
     try:
-
-        import json
 
         intencion = json.loads(
             intencion_json

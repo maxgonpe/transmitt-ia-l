@@ -5,6 +5,9 @@ from .reglas_semanticas import (
     buscar_regla_patron,
 )
 
+from .memoria_multimodelo import (
+    normalizar_intencion_memoria,
+)
 
 def interpretar_con_memoria(pregunta):
     """
@@ -25,6 +28,11 @@ def interpretar_con_memoria(pregunta):
 
     if regla:
 
+        regla = normalizar_intencion_memoria(
+            regla
+        )
+
+
         return {
             "origen": "REGLA_SEMANTICA",
             "intencion": regla,
@@ -39,6 +47,11 @@ def interpretar_con_memoria(pregunta):
     )
 
     if regla:
+
+        regla = normalizar_intencion_memoria(
+            regla
+        )
+
 
         return {
             "origen": "REGLA_PATRON",
