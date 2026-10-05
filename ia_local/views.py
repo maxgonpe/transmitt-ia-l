@@ -5,64 +5,325 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 
+from documents.models import Document
+
 from .models import IAReglaSemantica
-from .services.formateador_resultados import formatear_resultado_motor
-from .services.motor_generico import ejecutar_pregunta
+
+from .services.formateador_resultados import (
+    formatear_resultado_motor,
+)
+
+from .services.motor_generico import (
+    ejecutar_pregunta,
+)
+
+from .services.orm_generico import (
+    ejecutar_consulta as ejecutar_consulta_orm,
+)
+
 from .services.reglas_semanticas import (
     guardar_regla_exacta,
     guardar_regla_patron,
 )
-from .services.sugerencias_patron import sugerir_patron
+
+from .services.sugerencias_patron import (
+    sugerir_patron,
+)
 
 
-def _ejecutar_consulta_ia(pregunta, limite=20):
+# ============================================================
+# CONSULTA NORMAL
+# ============================================================
+
+def _ejecutar_consulta_ia(
+    pregunta,
+    limite=20,
+):
     """
-    IA-CORE022.
+    Punto de entrada normal del motor IA.
 
-    Punto único de entrada para las vistas web/API.
-    Reutiliza exactamente el motor genérico validado
-    en CORE018 y el formateador de CORE021.
+    Pregunta:
+        lenguaje natural
+
+    Flujo:
+        memoria / Qwen
+        -> normalización
+        -> ORM
+        -> formateador
     """
+
     resultado_motor = ejecutar_pregunta(
         pregunta,
         limite=limite,
     )
 
-    respuesta_estructurada = formatear_resultado_motor(
-        resultado_motor
+    respuesta_estructurada = (
+        formatear_resultado_motor(
+            resultado_motor
+        )
     )
 
-    # El motor contiene instancias Django en "objetos".
-    # Para respuestas JSON y diagnóstico exponemos solo
-    # información serializable y útil.
     diagnostico = {
-        "origen": resultado_motor.get("origen"),
-        "tema": resultado_motor.get("tema"),
-        "modelo": resultado_motor.get("modelo"),
-        "operacion": resultado_motor.get("operacion"),
-        "cantidad": resultado_motor.get("cantidad"),
-        "orden": resultado_motor.get("orden"),
-        "filtros_orm": resultado_motor.get("filtros_orm"),
-        "total": resultado_motor.get("total"),
-        "limite": resultado_motor.get("limite"),
+        "origen":
+            resultado_motor.get("origen"),
+
+        "tema":
+            resultado_motor.get("tema"),
+
+        "modelo":
+            resultado_motor.get("modelo"),
+
+        "operacion":
+            resultado_motor.get("operacion"),
+
+        "cantidad":
+            resultado_motor.get("cantidad"),
+
+        "orden":
+            resultado_motor.get("orden"),
+
+        "filtros_orm":
+            resultado_motor.get("filtros_orm"),
+
+        "total":
+            resultado_motor.get("total"),
+
+        "limite":
+            resultado_motor.get("limite"),
     }
 
     return {
-        "motor": resultado_motor,
-        "diagnostico": diagnostico,
-        "respuesta_estructurada": respuesta_estructurada,
-        "respuesta_texto": json.dumps(
+        "motor":
+            resultado_motor,
+
+        "diagnostico":
+            diagnostico,
+
+        "respuesta_estructurada":
             respuesta_estructurada,
-            ensure_ascii=False,
-            indent=2,
-            default=str,
-        ),
+
+        "respuesta_texto":
+            json.dumps(
+                respuesta_estructurada,
+                ensure_ascii=False,
+                indent=2,
+                default=str,
+            ),
     }
 
 
+# ============================================================
+# PROBAR INTENCIÓN CORREGIDA
+# ============================================================
+
+def _probar_intencion_corregida(
+    intencion,
+    limite=20,
+):
+    """
+    Ejecuta directamente una intención corregida por el usuario.
+
+    IMPORTANTE:
+    - NO llama a Qwen.
+    - NO crea reglas.
+    - NO modifica memoria.
+    - NO guarda nada.
+
+    Solamente prueba la intención contra el ORM seguro.
+    """
+
+    if not isinstance(
+        intencion,
+        dict,
+    ):
+        raise ValueError(
+            "La intención debe ser un objeto JSON."
+        )
+
+    tema = intencion.get(
+        "tema"
+    )
+
+    if not tema:
+        raise ValueError(
+            "La intención debe contener 'tema'."
+        )
+
+    operacion = (
+        intencion.get("operacion")
+        or "listar"
+    )
+
+    filtros = (
+        intencion.get("filtros")
+        or {}
+    )
+
+    cantidad = (
+        intencion.get("cantidad")
+        or "varios"
+    )
+
+    orden = (
+        intencion.get("orden")
+        or "ninguno"
+    )
+
+    if not isinstance(
+        filtros,
+        dict,
+    ):
+        raise ValueError(
+            "'filtros' debe ser un objeto JSON."
+        )
+
+    if operacion not in {
+        "contar",
+        "listar",
+        "detalle",
+    }:
+        raise ValueError(
+            "Operación no permitida para esta prueba: "
+            f"{operacion}"
+        )
+
+    limite_real = limite
+
+    if (
+        cantidad == "uno"
+        or operacion == "detalle"
+    ):
+        limite_real = 1
+
+    # --------------------------------------------------------
+    # ORM SEGURO
+    # --------------------------------------------------------
+
+    resultado_orm = ejecutar_consulta_orm(
+        tema=tema,
+        filtros=filtros,
+        limite=limite_real,
+    )
+
+    # --------------------------------------------------------
+    # Construimos estructura compatible con el formateador
+    # --------------------------------------------------------
+
+    resultado_motor = {
+        "origen":
+            "CORRECCION_MANUAL",
+
+        "tema":
+            resultado_orm.get("tema"),
+
+        "modelo":
+            resultado_orm.get("modelo"),
+
+        "operacion":
+            operacion,
+
+        "cantidad":
+            cantidad,
+
+        "orden":
+            orden,
+
+        "filtros_orm":
+            resultado_orm.get(
+                "filtros_orm"
+            ),
+
+        "total":
+            resultado_orm.get(
+                "total"
+            ),
+
+        "limite":
+            limite_real,
+
+        "objetos":
+            resultado_orm.get(
+                "objetos",
+                [],
+            ),
+
+        "intencion":
+            intencion,
+    }
+
+    respuesta_estructurada = (
+        formatear_resultado_motor(
+            resultado_motor
+        )
+    )
+
+    diagnostico = {
+        "origen":
+            "CORRECCION_MANUAL",
+
+        "tema":
+            resultado_motor[
+                "tema"
+            ],
+
+        "modelo":
+            resultado_motor[
+                "modelo"
+            ],
+
+        "operacion":
+            operacion,
+
+        "cantidad":
+            cantidad,
+
+        "orden":
+            orden,
+
+        "filtros_orm":
+            resultado_motor[
+                "filtros_orm"
+            ],
+
+        "total":
+            resultado_motor[
+                "total"
+            ],
+
+        "limite":
+            limite_real,
+    }
+
+    return {
+        "motor":
+            resultado_motor,
+
+        "diagnostico":
+            diagnostico,
+
+        "respuesta_estructurada":
+            respuesta_estructurada,
+
+        "respuesta_texto":
+            json.dumps(
+                respuesta_estructurada,
+                ensure_ascii=False,
+                indent=2,
+                default=str,
+            ),
+    }
+
+
+# ============================================================
+# CONSOLA NORMAL
+# ============================================================
+
 @staff_member_required
-@require_http_methods(["GET", "POST"])
+@require_http_methods(
+    ["GET", "POST"]
+)
 def consulta_ia(request):
+
     contexto = {
         "pregunta": "",
         "respuesta": "",
@@ -73,24 +334,65 @@ def consulta_ia(request):
     }
 
     if request.method == "POST":
-        pregunta = (request.POST.get("pregunta") or "").strip()
-        contexto["pregunta"] = pregunta
+
+        pregunta = (
+            request.POST.get(
+                "pregunta"
+            )
+            or ""
+        ).strip()
+
+        contexto[
+            "pregunta"
+        ] = pregunta
 
         if not pregunta:
-            contexto["error"] = "Escribe una pregunta."
-        else:
-            try:
-                salida = _ejecutar_consulta_ia(pregunta)
 
-                contexto["plan"] = salida["diagnostico"]
-                contexto["resultado"] = salida["diagnostico"]
-                contexto["respuesta_estructurada"] = (
-                    salida["respuesta_estructurada"]
+            contexto[
+                "error"
+            ] = (
+                "Escribe una pregunta."
+            )
+
+        else:
+
+            try:
+
+                salida = (
+                    _ejecutar_consulta_ia(
+                        pregunta
+                    )
                 )
-                contexto["respuesta"] = salida["respuesta_texto"]
+
+                contexto[
+                    "plan"
+                ] = salida[
+                    "diagnostico"
+                ]
+
+                contexto[
+                    "resultado"
+                ] = salida[
+                    "diagnostico"
+                ]
+
+                contexto[
+                    "respuesta_estructurada"
+                ] = salida[
+                    "respuesta_estructurada"
+                ]
+
+                contexto[
+                    "respuesta"
+                ] = salida[
+                    "respuesta_texto"
+                ]
 
             except Exception as exc:
-                contexto["error"] = str(exc)
+
+                contexto[
+                    "error"
+                ] = str(exc)
 
     return render(
         request,
@@ -99,76 +401,30 @@ def consulta_ia(request):
     )
 
 
+# ============================================================
+# API CONSULTA NORMAL
+# ============================================================
+
 @staff_member_required
-@require_http_methods(["POST"])
+@require_http_methods(
+    ["POST"]
+)
 def consulta_ia_json(request):
-    pregunta = (request.POST.get("pregunta") or "").strip()
 
-    if not pregunta:
-        return JsonResponse(
-            {
-                "ok": False,
-                "error": "La pregunta está vacía.",
-            },
-            status=400,
-            json_dumps_params={"ensure_ascii": False},
-        )
-
-    try:
-        salida = _ejecutar_consulta_ia(pregunta)
-        diagnostico = salida["diagnostico"]
-
-        return JsonResponse(
-            {
-                "ok": True,
-                "pregunta": pregunta,
-                "origen": diagnostico["origen"],
-                "tema": diagnostico["tema"],
-                "modelo": diagnostico["modelo"],
-                "operacion": diagnostico["operacion"],
-                "intencion": salida["motor"].get("intencion"),
-                "filtros_orm": diagnostico["filtros_orm"],
-                "total": diagnostico["total"],
-                "respuesta": salida["respuesta_texto"],
-                "respuesta_estructurada": (
-                    salida["respuesta_estructurada"]
-                ),
-            },
-            json_dumps_params={"ensure_ascii": False},
-        )
-
-    except Exception as exc:
-        return JsonResponse(
-            {
-                "ok": False,
-                "error": str(exc),
-            },
-            status=400,
-            json_dumps_params={"ensure_ascii": False},
-        )
-
-
-@staff_member_required
-def index_test(request):
-    return render(
-        request,
-        "ia_local/index_test.html"
-    )
-
-
-@staff_member_required
-@require_http_methods(["POST"])
-def consulta_test_json(request):
     pregunta = (
-        request.POST.get("pregunta")
+        request.POST.get(
+            "pregunta"
+        )
         or ""
     ).strip()
 
     if not pregunta:
+
         return JsonResponse(
             {
                 "ok": False,
-                "error": "La pregunta está vacía.",
+                "error":
+                    "La pregunta está vacía.",
             },
             status=400,
             json_dumps_params={
@@ -177,53 +433,203 @@ def consulta_test_json(request):
         )
 
     try:
-        salida = _ejecutar_consulta_ia(
-            pregunta
+
+        salida = (
+            _ejecutar_consulta_ia(
+                pregunta
+            )
         )
 
-        motor = salida["motor"]
-        diagnostico = salida["diagnostico"]
+        diagnostico = salida[
+            "diagnostico"
+        ]
+
+        return JsonResponse(
+            {
+                "ok": True,
+
+                "pregunta":
+                    pregunta,
+
+                "origen":
+                    diagnostico[
+                        "origen"
+                    ],
+
+                "tema":
+                    diagnostico[
+                        "tema"
+                    ],
+
+                "modelo":
+                    diagnostico[
+                        "modelo"
+                    ],
+
+                "operacion":
+                    diagnostico[
+                        "operacion"
+                    ],
+
+                "intencion":
+                    salida[
+                        "motor"
+                    ].get(
+                        "intencion"
+                    ),
+
+                "filtros_orm":
+                    diagnostico[
+                        "filtros_orm"
+                    ],
+
+                "total":
+                    diagnostico[
+                        "total"
+                    ],
+
+                "respuesta":
+                    salida[
+                        "respuesta_texto"
+                    ],
+
+                "respuesta_estructurada":
+                    salida[
+                        "respuesta_estructurada"
+                    ],
+            },
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    except Exception as exc:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": str(exc),
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+
+# ============================================================
+# CONSOLA DE DIAGNÓSTICO / APRENDIZAJE
+# ============================================================
+
+@staff_member_required
+def index_test(request):
+
+    return render(
+        request,
+        "ia_local/index_test.html",
+    )
+
+
+# ============================================================
+# CONSULTAR DESDE CONSOLA DE DIAGNÓSTICO
+# ============================================================
+
+@staff_member_required
+@require_http_methods(
+    ["POST"]
+)
+def consulta_test_json(request):
+
+    pregunta = (
+        request.POST.get(
+            "pregunta"
+        )
+        or ""
+    ).strip()
+
+    if not pregunta:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error":
+                    "La pregunta está vacía.",
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    try:
+
+        salida = (
+            _ejecutar_consulta_ia(
+                pregunta
+            )
+        )
+
+        motor = salida[
+            "motor"
+        ]
+
+        diagnostico = salida[
+            "diagnostico"
+        ]
 
         raw = (
-            motor.get("intencion_raw")
-            or motor.get("intencion")
+            motor.get(
+                "intencion_raw"
+            )
+            or motor.get(
+                "intencion"
+            )
         )
 
         normalizado = motor.get(
             "intencion"
         )
 
-        # Conservamos la sugerencia manual de patrones
-        # de la consola de diagnóstico.
-        sugerencia_patron = sugerir_patron(
-            pregunta,
-            normalizado,
+        sugerencia_patron = (
+            sugerir_patron(
+                pregunta,
+                normalizado,
+            )
         )
 
         return JsonResponse(
             {
                 "ok": True,
-                "pregunta": pregunta,
 
-                # Nombres conservados para compatibilidad
-                # con index_test.html actual.
+                "pregunta":
+                    pregunta,
+
                 "origen_interpretacion":
-                    diagnostico["origen"],
-                "raw": raw,
-                "normalizado": normalizado,
+                    diagnostico[
+                        "origen"
+                    ],
+
+                "raw":
+                    raw,
+
+                "normalizado":
+                    normalizado,
+
                 "sugerencia_patron":
                     sugerencia_patron,
 
-                # Resultado ORM serializable para diagnóstico.
-                "resultado": diagnostico,
+                "resultado":
+                    diagnostico,
 
-                # El JS actual espera texto en "respuesta".
                 "respuesta":
-                    salida["respuesta_texto"],
+                    salida[
+                        "respuesta_texto"
+                    ],
 
-                # Disponible para futuros consumidores/API.
                 "respuesta_estructurada":
-                    salida["respuesta_estructurada"],
+                    salida[
+                        "respuesta_estructurada"
+                    ],
             },
             json_dumps_params={
                 "ensure_ascii": False
@@ -231,6 +637,7 @@ def consulta_test_json(request):
         )
 
     except Exception as exc:
+
         return JsonResponse(
             {
                 "ok": False,
@@ -243,27 +650,52 @@ def consulta_test_json(request):
         )
 
 
+# ============================================================
+# PROBAR O GUARDAR REGLA EXACTA
+#
+# MISMO ENDPOINT EXISTENTE:
+# /ia/test-guardar-regla/
+#
+# modo=probar  -> NO guarda
+# modo=guardar -> guarda regla exacta
+# ============================================================
 
 @staff_member_required
-@require_http_methods(["POST"])
-def guardar_regla_test_json(request):
+@require_http_methods(
+    ["POST"]
+)
+def guardar_regla_test_json(
+    request
+):
 
     pregunta = (
-        request.POST.get("pregunta")
+        request.POST.get(
+            "pregunta"
+        )
         or ""
     ).strip()
 
     intencion_json = (
-        request.POST.get("intencion")
+        request.POST.get(
+            "intencion"
+        )
         or ""
     ).strip()
+
+    modo = (
+        request.POST.get(
+            "modo"
+        )
+        or "guardar"
+    ).strip().lower()
 
     if not pregunta:
 
         return JsonResponse(
             {
                 "ok": False,
-                "error": "La pregunta está vacía.",
+                "error":
+                    "La pregunta está vacía.",
             },
             status=400,
             json_dumps_params={
@@ -276,7 +708,8 @@ def guardar_regla_test_json(request):
         return JsonResponse(
             {
                 "ok": False,
-                "error": "No existe intención normalizada para guardar.",
+                "error":
+                    "No existe intención para procesar.",
             },
             status=400,
             json_dumps_params={
@@ -295,7 +728,9 @@ def guardar_regla_test_json(request):
         return JsonResponse(
             {
                 "ok": False,
-                "error": "La intención recibida no es JSON válido.",
+                "error":
+                    "La intención recibida "
+                    "no es JSON válido.",
             },
             status=400,
             json_dumps_params={
@@ -305,58 +740,137 @@ def guardar_regla_test_json(request):
 
     try:
 
-        # -------------------------------------------------
-        # Validación mínima de estructura
-        # -------------------------------------------------
-
-        if not isinstance(intencion, dict):
-
+        if not isinstance(
+            intencion,
+            dict,
+        ):
             raise ValueError(
-                "La intención debe ser un objeto JSON."
+                "La intención debe ser "
+                "un objeto JSON."
             )
 
-        tema = intencion.get("tema")
-
-        if not tema:
-
+        if not intencion.get(
+            "tema"
+        ):
             raise ValueError(
                 "La intención no contiene 'tema'."
             )
 
-        # -------------------------------------------------
-        # Guardar / actualizar regla exacta
-        # -------------------------------------------------
+        # ====================================================
+        # MODO PROBAR
+        # ====================================================
 
-        regla, creada = guardar_regla_exacta(
-            pregunta=pregunta,
-            intencion=intencion,
-            observacion=(
-                "Regla guardada manualmente "
-                "desde la consola de diagnóstico."
-            ),
+        if modo == "probar":
+
+            salida = (
+                _probar_intencion_corregida(
+                    intencion
+                )
+            )
+
+            return JsonResponse(
+                {
+                    "ok": True,
+
+                    "modo":
+                        "probar",
+
+                    "guardado":
+                        False,
+
+                    "resultado":
+                        salida[
+                            "diagnostico"
+                        ],
+
+                    "respuesta":
+                        salida[
+                            "respuesta_texto"
+                        ],
+
+                    "respuesta_estructurada":
+                        salida[
+                            "respuesta_estructurada"
+                        ],
+
+                    "mensaje":
+                        (
+                            "Corrección probada "
+                            "correctamente. "
+                            "No se guardó ninguna regla."
+                        ),
+                },
+                json_dumps_params={
+                    "ensure_ascii": False
+                },
+            )
+
+        # ====================================================
+        # MODO GUARDAR
+        # ====================================================
+
+        if modo != "guardar":
+
+            raise ValueError(
+                "Modo no reconocido."
+            )
+
+        regla, creada = (
+            guardar_regla_exacta(
+                pregunta=pregunta,
+                intencion=intencion,
+                observacion=(
+                    "Regla exacta guardada "
+                    "manualmente desde la "
+                    "consola de aprendizaje "
+                    "después de revisar la intención."
+                ),
+            )
         )
 
         return JsonResponse(
             {
                 "ok": True,
 
-                "creada": creada,
+                "modo":
+                    "guardar",
+
+                "guardado":
+                    True,
+
+                "creada":
+                    creada,
 
                 "regla": {
-                    "id": regla.pk,
-                    "pregunta": regla.pregunta,
-                    "tema": regla.tema,
-                    "operacion": regla.operacion,
-                    "filtros": regla.filtros,
-                    "cantidad": regla.cantidad,
-                    "orden": regla.orden,
+                    "id":
+                        regla.pk,
+
+                    "pregunta":
+                        regla.pregunta,
+
+                    "tema":
+                        regla.tema,
+
+                    "operacion":
+                        regla.operacion,
+
+                    "filtros":
+                        regla.filtros,
+
+                    "cantidad":
+                        regla.cantidad,
+
+                    "orden":
+                        regla.orden,
                 },
 
                 "mensaje": (
-                    "Regla semántica creada correctamente."
+                    "Regla exacta creada "
+                    "correctamente."
                     if creada
                     else
-                    "Regla semántica actualizada correctamente."
+                    "Regla exacta actualizada "
+                    "correctamente."
                 ),
             },
             json_dumps_params={
@@ -378,12 +892,183 @@ def guardar_regla_test_json(request):
         )
 
 
+# ============================================================
+# GUARDAR PATRÓN
+# ============================================================
+
+@staff_member_required
+@require_http_methods(
+    ["POST"]
+)
+def guardar_patron_test_json(
+    request
+):
+
+    patron = (
+        request.POST.get(
+            "patron"
+        )
+        or ""
+    ).strip()
+
+    intencion_json = (
+        request.POST.get(
+            "intencion"
+        )
+        or ""
+    ).strip()
+
+    if not patron:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error":
+                    "El patrón está vacío.",
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    if not intencion_json:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error":
+                    "La intención del patrón "
+                    "está vacía.",
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    try:
+
+        intencion = json.loads(
+            intencion_json
+        )
+
+    except json.JSONDecodeError:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error":
+                    "La intención no contiene "
+                    "JSON válido.",
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    try:
+
+        if not isinstance(
+            intencion,
+            dict,
+        ):
+            raise ValueError(
+                "La intención debe ser "
+                "un objeto JSON."
+            )
+
+        if not intencion.get(
+            "tema"
+        ):
+            raise ValueError(
+                "La intención debe "
+                "contener 'tema'."
+            )
+
+        regla, creada = (
+            guardar_regla_patron(
+                patron=patron,
+                intencion=intencion,
+                observacion=(
+                    "Patrón guardado manualmente "
+                    "desde la consola de aprendizaje."
+                ),
+            )
+        )
+
+        return JsonResponse(
+            {
+                "ok": True,
+
+                "creada":
+                    creada,
+
+                "regla": {
+                    "id":
+                        regla.pk,
+
+                    "tipo":
+                        regla.tipo,
+
+                    "patron":
+                        regla.pregunta,
+
+                    "patron_normalizado":
+                        regla.pregunta_normalizada,
+
+                    "tema":
+                        regla.tema,
+
+                    "operacion":
+                        regla.operacion,
+
+                    "filtros":
+                        regla.filtros,
+
+                    "cantidad":
+                        regla.cantidad,
+
+                    "orden":
+                        regla.orden,
+                },
+
+                "mensaje": (
+                    "Patrón semántico creado "
+                    "correctamente."
+                    if creada
+                    else
+                    "Patrón semántico actualizado "
+                    "correctamente."
+                ),
+            },
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    except Exception as exc:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error": str(exc),
+            },
+            status=400,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
 
 
-from documents.models import Document
+# ============================================================
+# DIAGNÓSTICO DOCUMENTOS
+# ============================================================
 
-
-def diagnostico_documentos(request):
+def diagnostico_documentos(
+    request
+):
 
     docs = (
         Document.objects
@@ -396,195 +1081,200 @@ def diagnostico_documentos(request):
             "sello_verificado_por",
             "liberacion_registrada_por",
         )
-        .order_by("-date", "-id")[:50]
+        .order_by(
+            "-date",
+            "-id",
+        )[:50]
     )
 
     datos = []
 
     for doc in docs:
 
-        datos.append({
-            "id": doc.id,
+        datos.append(
+            {
+                "id":
+                    doc.id,
 
-            "number": doc.number,
-            "code": doc.code,
+                "number":
+                    doc.number,
 
-            "title": doc.title,
-            "description": doc.description,
+                "code":
+                    doc.code,
 
-            "revision": doc.revision,
-            "date": str(doc.date) if doc.date else None,
+                "title":
+                    doc.title,
 
-            "status": doc.status,
-            "status_nombre": doc.get_status_display(),
+                "description":
+                    doc.description,
 
-            "informado": doc.informado,
-            "informado_nombre": doc.get_informado_display(),
+                "revision":
+                    doc.revision,
 
-            # -------------------------------------------------
-            # Proyecto
-            # -------------------------------------------------
-            "project_code": (
-                doc.project.code
-                if doc.project
-                else None
-            ),
+                "date": (
+                    str(doc.date)
+                    if doc.date
+                    else None
+                ),
 
-            "project_name": (
-                doc.project.name
-                if doc.project
-                else None
-            ),
+                "status":
+                    doc.status,
 
-            # -------------------------------------------------
-            # Empresa
-            # -------------------------------------------------
-            "company_code": (
-                doc.company.code
-                if doc.company
-                else None
-            ),
+                "status_nombre":
+                    doc.get_status_display(),
 
-            "company_name": (
-                doc.company.name
-                if doc.company
-                else None
-            ),
+                "informado":
+                    doc.informado,
 
-            # -------------------------------------------------
-            # Proceso
-            # -------------------------------------------------
-            "process_code": (
-                doc.process.code
-                if doc.process
-                else None
-            ),
+                "informado_nombre":
+                    doc.get_informado_display(),
 
-            "process_name": (
-                doc.process.name
-                if doc.process
-                else None
-            ),
+                "project_code": (
+                    doc.project.code
+                    if doc.project
+                    else None
+                ),
 
-            # -------------------------------------------------
-            # Tipo de documento
-            # -------------------------------------------------
-            "doc_type_code": (
-                doc.doc_type.code
-                if doc.doc_type
-                else None
-            ),
+                "project_name": (
+                    doc.project.name
+                    if doc.project
+                    else None
+                ),
 
-            "doc_type_name": (
-                doc.doc_type.name
-                if doc.doc_type
-                else None
-            ),
+                "company_code": (
+                    doc.company.code
+                    if doc.company
+                    else None
+                ),
 
-            # -------------------------------------------------
-            # Carpeta / transmittal
-            # -------------------------------------------------
-            "folder_code": (
-                doc.folder.code
-                if doc.folder
-                else None
-            ),
+                "company_name": (
+                    doc.company.name
+                    if doc.company
+                    else None
+                ),
 
-            # -------------------------------------------------
-            # Archivo
-            # -------------------------------------------------
-            "file": (
-                doc.file.name
-                if doc.file
-                else None
-            ),
+                "process_code": (
+                    doc.process.code
+                    if doc.process
+                    else None
+                ),
 
-            # Solo un fragmento para no generar una salida enorme
-            "content_extract": (
-                doc.content_extract[:1000]
-                if doc.content_extract
-                else ""
-            ),
+                "process_name": (
+                    doc.process.name
+                    if doc.process
+                    else None
+                ),
 
-            # -------------------------------------------------
-            # Liberación
-            # -------------------------------------------------
-            "estado_liberacion": doc.estado_liberacion,
+                "doc_type_code": (
+                    doc.doc_type.code
+                    if doc.doc_type
+                    else None
+                ),
 
-            "estado_liberacion_nombre": (
-                doc.get_estado_liberacion_display()
-            ),
+                "doc_type_name": (
+                    doc.doc_type.name
+                    if doc.doc_type
+                    else None
+                ),
 
-            "fecha_liberacion": (
-                str(doc.fecha_liberacion)
-                if doc.fecha_liberacion
-                else None
-            ),
+                "folder_code": (
+                    doc.folder.code
+                    if doc.folder
+                    else None
+                ),
 
-            "liberacion_observada_at": (
-                doc.liberacion_observada_at.isoformat()
-                if doc.liberacion_observada_at
-                else None
-            ),
+                "file": (
+                    doc.file.name
+                    if doc.file
+                    else None
+                ),
 
-            "fuente_liberacion": doc.fuente_liberacion,
+                "content_extract": (
+                    doc.content_extract[:1000]
+                    if doc.content_extract
+                    else ""
+                ),
 
-            "fuente_liberacion_nombre": (
-                doc.get_fuente_liberacion_display()
-                if doc.fuente_liberacion
-                else ""
-            ),
+                "estado_liberacion":
+                    doc.estado_liberacion,
 
-            "sello_liberado_verificado":
-                doc.sello_liberado_verificado,
+                "estado_liberacion_nombre":
+                    doc.get_estado_liberacion_display(),
 
-            "sello_verificado_at": (
-                doc.sello_verificado_at.isoformat()
-                if doc.sello_verificado_at
-                else None
-            ),
+                "fecha_liberacion": (
+                    str(
+                        doc.fecha_liberacion
+                    )
+                    if doc.fecha_liberacion
+                    else None
+                ),
 
-            "sello_verificado_por": (
-                doc.sello_verificado_por.username
-                if doc.sello_verificado_por
-                else None
-            ),
+                "liberacion_observada_at": (
+                    doc.liberacion_observada_at.isoformat()
+                    if doc.liberacion_observada_at
+                    else None
+                ),
 
-            "liberacion_transmittal":
-                doc.liberacion_transmittal,
+                "fuente_liberacion":
+                    doc.fuente_liberacion,
 
-            "liberacion_referencia":
-                doc.liberacion_referencia,
+                "fuente_liberacion_nombre": (
+                    doc.get_fuente_liberacion_display()
+                    if doc.fuente_liberacion
+                    else ""
+                ),
 
-            "liberacion_observacion":
-                doc.liberacion_observacion,
+                "sello_liberado_verificado":
+                    doc.sello_liberado_verificado,
 
-            "liberacion_registrada_por": (
-                doc.liberacion_registrada_por.username
-                if doc.liberacion_registrada_por
-                else None
-            ),
+                "sello_verificado_at": (
+                    doc.sello_verificado_at.isoformat()
+                    if doc.sello_verificado_at
+                    else None
+                ),
 
-            # -------------------------------------------------
-            # Auditoría
-            # -------------------------------------------------
-            "created_at": (
-                doc.created_at.isoformat()
-                if doc.created_at
-                else None
-            ),
+                "sello_verificado_por": (
+                    doc.sello_verificado_por.username
+                    if doc.sello_verificado_por
+                    else None
+                ),
 
-            "updated_at": (
-                doc.updated_at.isoformat()
-                if doc.updated_at
-                else None
-            ),
-        })
+                "liberacion_transmittal":
+                    doc.liberacion_transmittal,
+
+                "liberacion_referencia":
+                    doc.liberacion_referencia,
+
+                "liberacion_observacion":
+                    doc.liberacion_observacion,
+
+                "liberacion_registrada_por": (
+                    doc.liberacion_registrada_por.username
+                    if doc.liberacion_registrada_por
+                    else None
+                ),
+
+                "created_at": (
+                    doc.created_at.isoformat()
+                    if doc.created_at
+                    else None
+                ),
+
+                "updated_at": (
+                    doc.updated_at.isoformat()
+                    if doc.updated_at
+                    else None
+                ),
+            }
+        )
 
     return JsonResponse(
         {
-            "total_mostrados": len(datos),
-            "documentos": datos,
+            "total_mostrados":
+                len(datos),
+
+            "documentos":
+                datos,
         },
         json_dumps_params={
             "indent": 2,
@@ -593,135 +1283,17 @@ def diagnostico_documentos(request):
     )
 
 
-@staff_member_required
-@require_http_methods(["POST"])
-def guardar_patron_test_json(request):
-
-    patron = (
-        request.POST.get("patron")
-        or ""
-    ).strip()
-
-    intencion_json = (
-        request.POST.get("intencion")
-        or ""
-    ).strip()
-
-    if not patron:
-
-        return JsonResponse(
-            {
-                "ok": False,
-                "error": "El patrón está vacío.",
-            },
-            status=400,
-            json_dumps_params={
-                "ensure_ascii": False
-            },
-        )
-
-    if not intencion_json:
-
-        return JsonResponse(
-            {
-                "ok": False,
-                "error": "La intención del patrón está vacía.",
-            },
-            status=400,
-            json_dumps_params={
-                "ensure_ascii": False
-            },
-        )
-
-    try:
-
-        intencion = json.loads(
-            intencion_json
-        )
-
-    except json.JSONDecodeError:
-
-        return JsonResponse(
-            {
-                "ok": False,
-                "error": "La intención no contiene JSON válido.",
-            },
-            status=400,
-            json_dumps_params={
-                "ensure_ascii": False
-            },
-        )
-
-    try:
-
-        if not isinstance(intencion, dict):
-
-            raise ValueError(
-                "La intención debe ser un objeto JSON."
-            )
-
-        if not intencion.get("tema"):
-
-            raise ValueError(
-                "La intención debe contener 'tema'."
-            )
-
-        regla, creada = guardar_regla_patron(
-            patron=patron,
-            intencion=intencion,
-            observacion=(
-                "Patrón guardado manualmente "
-                "desde la consola de diagnóstico."
-            ),
-        )
-
-        return JsonResponse(
-            {
-                "ok": True,
-
-                "creada": creada,
-
-                "regla": {
-                    "id": regla.pk,
-                    "tipo": regla.tipo,
-                    "patron": regla.pregunta,
-                    "patron_normalizado": regla.pregunta_normalizada,
-                    "tema": regla.tema,
-                    "operacion": regla.operacion,
-                    "filtros": regla.filtros,
-                    "cantidad": regla.cantidad,
-                    "orden": regla.orden,
-                },
-
-                "mensaje": (
-                    "Patrón semántico creado correctamente."
-                    if creada
-                    else
-                    "Patrón semántico actualizado correctamente."
-                ),
-            },
-            json_dumps_params={
-                "ensure_ascii": False
-            },
-        )
-
-    except Exception as exc:
-
-        return JsonResponse(
-            {
-                "ok": False,
-                "error": str(exc),
-            },
-            status=400,
-            json_dumps_params={
-                "ensure_ascii": False
-            },
-        )
-
+# ============================================================
+# LISTADO REGLAS
+# ============================================================
 
 @staff_member_required
-@require_http_methods(["GET"])
-def reglas_semanticas(request):
+@require_http_methods(
+    ["GET"]
+)
+def reglas_semanticas(
+    request
+):
 
     reglas = (
         IAReglaSemantica.objects
@@ -738,22 +1310,37 @@ def reglas_semanticas(request):
         request,
         "ia_local/reglas_semanticas.html",
         {
-            "reglas": reglas,
+            "reglas":
+                reglas,
         },
     )
 
 
+# ============================================================
+# ACTIVAR / DESACTIVAR REGLA
+# ============================================================
+
 @staff_member_required
-@require_http_methods(["POST"])
-def cambiar_estado_regla(request, pk):
+@require_http_methods(
+    ["POST"]
+)
+def cambiar_estado_regla(
+    request,
+    pk,
+):
 
     try:
 
-        regla = IAReglaSemantica.objects.get(
-            pk=pk
+        regla = (
+            IAReglaSemantica.objects
+            .get(
+                pk=pk
+            )
         )
 
-        regla.activa = not regla.activa
+        regla.activa = (
+            not regla.activa
+        )
 
         regla.save(
             update_fields=[
@@ -764,9 +1351,15 @@ def cambiar_estado_regla(request, pk):
 
         return JsonResponse(
             {
-                "ok": True,
-                "id": regla.pk,
-                "activa": regla.activa,
+                "ok":
+                    True,
+
+                "id":
+                    regla.pk,
+
+                "activa":
+                    regla.activa,
+
                 "mensaje": (
                     "Regla activada."
                     if regla.activa
@@ -784,7 +1377,8 @@ def cambiar_estado_regla(request, pk):
         return JsonResponse(
             {
                 "ok": False,
-                "error": "La regla no existe.",
+                "error":
+                    "La regla no existe.",
             },
             status=404,
             json_dumps_params={

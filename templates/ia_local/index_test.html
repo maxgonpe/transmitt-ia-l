@@ -10,7 +10,7 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>TRANSMITT-IA-L | Test IA</title>
+    <title>TRANSMITT-IA-L | Aprendizaje semántico</title>
 
     <style>
 
@@ -28,12 +28,17 @@
 
         .container {
             width: 95%;
-            max-width: 1400px;
+            max-width: 1500px;
             margin: 30px auto;
         }
 
         h1 {
             margin-bottom: 5px;
+        }
+
+        h2,
+        h3 {
+            margin-top: 0;
         }
 
         .subtitle {
@@ -49,15 +54,28 @@
             margin-bottom: 20px;
         }
 
+        .panel-correction {
+            border: 2px solid #456b8a;
+        }
+
+        .panel-pattern {
+            border: 1px solid #baa56b;
+        }
+
         textarea {
             width: 100%;
-            min-height: 100px;
+            min-height: 110px;
             resize: vertical;
             padding: 12px;
             border: 1px solid #bbb;
             border-radius: 5px;
+            font-size: 15px;
+            font-family: Consolas, Monaco, monospace;
+        }
+
+        #pregunta {
+            font-family: Arial, Helvetica, sans-serif;
             font-size: 16px;
-            font-family: inherit;
         }
 
         button {
@@ -76,17 +94,45 @@
         }
 
         button:disabled {
-            opacity: 0.6;
-            cursor: wait;
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .secondary {
+            background: #687078;
+        }
+
+        .primary {
+            background: #315f7d;
+        }
+
+        .success {
+            background: #28743c;
+        }
+
+        .warning {
+            background: #8a6a20;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
         }
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns:
+                repeat(
+                    2,
+                    minmax(0, 1fr)
+                );
             gap: 20px;
         }
 
-        @media (max-width: 900px) {
+        @media (
+            max-width: 900px
+        ) {
 
             .grid {
                 grid-template-columns: 1fr;
@@ -126,11 +172,13 @@
             padding: 15px;
             white-space: pre-wrap;
             line-height: 1.5;
+            font-family: Consolas, Monaco, monospace;
         }
 
         .status {
-            margin-top: 10px;
+            margin-top: 15px;
             font-size: 14px;
+            font-weight: bold;
         }
 
         .ok {
@@ -144,22 +192,6 @@
         .loading {
             color: #555;
         }
-
-        .toolbar {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .secondary {
-            background: #687078;
-        }
-
-        /*
-        ---------------------------------------------------------
-        ORIGEN DE LA INTERPRETACIÓN
-        ---------------------------------------------------------
-        */
 
         .origen-panel {
             margin-bottom: 20px;
@@ -184,6 +216,61 @@
             color: green;
         }
 
+        .help {
+            margin: 8px 0 15px 0;
+            padding: 12px;
+            border-left: 4px solid #999;
+            background: #f7f7f7;
+            line-height: 1.5;
+        }
+
+        .help-blue {
+            border-left-color: #315f7d;
+        }
+
+        .help-yellow {
+            border-left-color: #8a6a20;
+        }
+
+        .result-good {
+            padding: 12px;
+            background: #f0f8f2;
+            border: 1px solid #b6d8be;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+
+        .result-neutral {
+            padding: 12px;
+            background: #f7f7f7;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+
+        .step-title {
+            margin-bottom: 6px;
+            font-size: 18px;
+        }
+
+        .step-number {
+            display: inline-block;
+            background: #333;
+            color: white;
+            width: 27px;
+            height: 27px;
+            line-height: 27px;
+            text-align: center;
+            border-radius: 50%;
+            margin-right: 7px;
+        }
+
+        code {
+            background: #eee;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
     </style>
 
 </head>
@@ -197,255 +284,393 @@
 
     <h1>TRANSMITT-IA-L</h1>
 
-
     <div class="subtitle">
-
-        Consola de diagnóstico IA → Memoria → Normalizador → ORM
-
+        Consola de diagnóstico y aprendizaje semántico supervisado
     </div>
 
 
     <!-- =====================================================
-         FORMULARIO DE CONSULTA
+         PASO 1
+         PREGUNTA
          ===================================================== -->
 
     <div class="panel">
 
-
-        <label for="pregunta">
-
-            <strong>Pregunta</strong>
-
-        </label>
-
+        <div class="step-title">
+            <span class="step-number">1</span>
+            Pregunta
+        </div>
 
         <textarea
             id="pregunta"
-            placeholder="Ejemplo: ¿Cuántos documentos aprobados hay?"
+            placeholder="Ejemplo: cuantas rdi de macanica hay"
         ></textarea>
 
-
         <div class="toolbar">
-
 
             <button
                 id="btnConsultar"
                 type="button"
                 onclick="consultarIA()"
             >
-
                 Consultar
-
             </button>
-
-
-            <button
-                id="btnGuardarRegla"
-                type="button"
-                class="secondary"
-                onclick="guardarComoRegla()"
-                disabled
-            >
-                Guardar como regla
-            </button>
-
 
             <button
                 type="button"
                 class="secondary"
                 onclick="limpiar()"
             >
-
                 Limpiar
-
             </button>
-
 
             <button
                 type="button"
                 class="secondary"
                 onclick="copiarTodo()"
             >
-
                 Copiar diagnóstico
-
             </button>
 
-
         </div>
-
 
         <div
             id="status"
             class="status"
         ></div>
 
-
     </div>
 
 
     <!-- =====================================================
-         ORIGEN DE INTERPRETACIÓN
+         ORIGEN
          ===================================================== -->
 
     <div class="origen-panel">
 
-
         <div class="box-title">
-
             ORIGEN DE LA INTERPRETACIÓN
-
         </div>
-
 
         <div
             id="origenInterpretacion"
             class="origen-contenido"
         >
-
             -
-
         </div>
-
 
     </div>
 
-    <!-- ========================================================
-         NEUVO
-         ====================================================== -->
+
+    <!-- =====================================================
+         PASO 2
+         DIAGNÓSTICO ORIGINAL
+         ===================================================== -->
 
     <div class="panel">
 
-    <h3>Patrón semántico sugerido</h3>
+        <div class="step-title">
+            <span class="step-number">2</span>
+            Diagnóstico original
+        </div>
 
-    <p>
-        Revisa la propuesta antes de guardarla.
-        El sistema nunca la incorpora automáticamente.
-    </p>
+        <div class="help">
+            Estos bloques muestran lo que interpretó el sistema.
+            <strong>No modifican ni guardan nada.</strong>
+        </div>
 
-    <label for="patronSemantico">
-        <strong>Patrón</strong>
-    </label>
+        <div class="grid">
 
-    <textarea
-        id="patronSemantico"
-        placeholder="Ejemplo: Muéstrame los documentos candidatos a revisión {REVISION}"
-    ></textarea>
+            <div class="box">
 
-    <br><br>
+                <div class="box-title">
+                    INTENCIÓN ORIGINAL
+                </div>
 
-    <label for="intencionPatron">
-        <strong>Intención del patrón</strong>
-    </label>
+                <pre id="raw"></pre>
 
-    <textarea
-        id="intencionPatron"
-        placeholder='Ejemplo:
-    {
-      "tema": "documentos",
-      "operacion": "listar",
-      "filtros": {
-        "revision": "CANDIDATO REV {REVISION}"
-      },
-      "cantidad": "varios",
-      "orden": "ninguno"
-    }'
+            </div>
+
+
+            <div class="box">
+
+                <div class="box-title">
+                    JSON NORMALIZADO POR DJANGO
+                </div>
+
+                <pre id="normalizado"></pre>
+
+            </div>
+
+
+            <div class="box">
+
+                <div class="box-title">
+                    RESULTADO ORM ORIGINAL
+                </div>
+
+                <pre id="resultado"></pre>
+
+            </div>
+
+
+            <div class="box">
+
+                <div class="box-title">
+                    RESPUESTA ORIGINAL
+                </div>
+
+                <div
+                    id="respuesta"
+                    class="respuesta"
+                ></div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         PASO 3
+         CORRECCIÓN
+         ===================================================== -->
+
+    <div
+        class="panel panel-correction"
+    >
+
+        <div class="step-title">
+            <span class="step-number">3</span>
+            Intención corregida
+        </div>
+
+        <div class="help help-blue">
+
+            Aquí puedes corregir lo que Qwen interpretó.
+
+            <br><br>
+
+            Ejemplo:
+
+            <br>
+
+            si interpretó:
+
+            <code>
+                company = macanica
+            </code>
+
+            pero el significado correcto es:
+
+            <code>
+                discipline = mechanical
+            </code>
+
+            cambia únicamente el JSON de abajo.
+
+            <br><br>
+
+            <strong>
+                Probar corrección NO guarda ninguna regla.
+            </strong>
+
+        </div>
+
+        <label for="intencionCorregida">
+            <strong>JSON corregido</strong>
+        </label>
+
+        <textarea
+            id="intencionCorregida"
+            placeholder='{
+  "tema": "rdi",
+  "operacion": "contar",
+  "filtros": {
+    "discipline": "mechanical"
+  },
+  "cantidad": "todos",
+  "orden": "ninguno"
+}'
         ></textarea>
 
-        <button
-            id="btnGuardarPatron"
-            type="button"
-            onclick="guardarPatron()"
-            
+        <div class="toolbar">
+
+            <button
+                id="btnCopiarNormalizado"
+                type="button"
+                class="secondary"
+                onclick="copiarNormalizadoACorreccion()"
+                disabled
+            >
+                Restaurar interpretación original
+            </button>
+
+            <button
+                id="btnProbarCorreccion"
+                type="button"
+                class="primary"
+                onclick="probarCorreccion()"
+                disabled
+            >
+                Probar corrección
+            </button>
+
+        </div>
+
+        <div
+            id="resultadoCorreccion"
+            class="result-neutral"
         >
-            Aprobar y guardar patrón
+            Todavía no se ha probado ninguna corrección.
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         PASO 4
+         APRENDIZAJE
+         ===================================================== -->
+
+    <div class="panel">
+
+        <div class="step-title">
+            <span class="step-number">4</span>
+            Guardar aprendizaje
+        </div>
+
+        <div class="help help-blue">
+
+            Usa <strong>Regla exacta</strong>
+            cuando quieres enseñar el significado correcto
+            de la pregunta concreta que acabas de probar.
+
+            <br><br>
+
+            Ejemplo:
+
+            <code>
+                cuantas rdi de macanica hay
+            </code>
+
+            puede quedar asociada a:
+
+            <code>
+                discipline = mechanical
+            </code>
+
+            <br><br>
+
+            El botón solo se habilita después de
+            <strong>Probar corrección</strong> correctamente.
+
+        </div>
+
+        <button
+            id="btnGuardarRegla"
+            type="button"
+            class="success"
+            onclick="guardarComoRegla()"
+            disabled
+        >
+            Guardar como regla exacta
         </button>
 
     </div>
 
 
-
     <!-- =====================================================
-         DIAGNÓSTICO
+         PASO 5
+         PATRÓN
          ===================================================== -->
 
-    <div class="grid">
+    <div
+        class="panel panel-pattern"
+    >
 
+        <div class="step-title">
+            <span class="step-number">5</span>
+            Patrón semántico
+        </div>
 
-        <!-- INTENCIÓN ORIGINAL -->
+        <div class="help help-yellow">
 
-        <div class="box">
+            <strong>
+                Un patrón NO es una corrección fija.
+            </strong>
 
+            <br><br>
 
-            <div class="box-title">
+            Debe contener al menos una variable entre llaves.
 
-                1. INTENCIÓN ORIGINAL
+            <br><br>
 
-            </div>
+            Ejemplo correcto:
 
+            <br>
 
-            <pre id="raw"></pre>
+            <code>
+                cuantas rdi de {DISCIPLINA} hay
+            </code>
 
+            <br><br>
+
+            con una intención como:
+
+            <br>
+
+            <code>
+                "discipline": "{DISCIPLINA}"
+            </code>
+
+            <br><br>
+
+            Si solamente quieres corregir
+            <code>macanica → mechanical</code>
+            para esta pregunta concreta,
+            utiliza la sección anterior:
+            <strong>Guardar como regla exacta</strong>.
 
         </div>
 
+        <label for="patronSemantico">
+            <strong>Patrón</strong>
+        </label>
 
-        <!-- NORMALIZADO -->
+        <textarea
+            id="patronSemantico"
+            placeholder="Ejemplo: cuantas rdi de {DISCIPLINA} hay"
+        ></textarea>
 
-        <div class="box">
+        <br><br>
 
+        <label for="intencionPatron">
+            <strong>Intención del patrón</strong>
+        </label>
 
-            <div class="box-title">
+        <textarea
+            id="intencionPatron"
+            placeholder='{
+  "tema": "rdi",
+  "operacion": "contar",
+  "filtros": {
+    "discipline": "{DISCIPLINA}"
+  },
+  "cantidad": "todos",
+  "orden": "ninguno"
+}'
+        ></textarea>
 
-                2. JSON NORMALIZADO POR DJANGO
-
-            </div>
-
-
-            <pre id="normalizado"></pre>
-
-
-        </div>
-
-
-        <!-- ORM -->
-
-        <div class="box">
-
-
-            <div class="box-title">
-
-                3. RESULTADO DEL ORM
-
-            </div>
-
-
-            <pre id="resultado"></pre>
-
-
-        </div>
-
-
-        <!-- RESPUESTA -->
-
-        <div class="box">
-
-
-            <div class="box-title">
-
-                4. RESPUESTA FINAL
-
-            </div>
-
-
-            <div
-                id="respuesta"
-                class="respuesta"
-            ></div>
-
-
-        </div>
-
+        <button
+            id="btnGuardarPatron"
+            type="button"
+            class="warning"
+            onclick="guardarPatron()"
+        >
+            Aprobar y guardar patrón
+        </button>
 
     </div>
 
@@ -458,6 +683,17 @@
 
 /*
 =========================================================
+ESTADO LOCAL
+=========================================================
+*/
+
+let ultimaIntencionNormalizada = null;
+
+let correccionProbada = false;
+
+
+/*
+=========================================================
 CSRF
 =========================================================
 */
@@ -466,15 +702,13 @@ function getCookie(name) {
 
     let cookieValue = null;
 
-
     if (
         document.cookie &&
-        document.cookie !== ''
+        document.cookie !== ""
     ) {
 
         const cookies =
-            document.cookie.split(';');
-
+            document.cookie.split(";");
 
         for (
             let i = 0;
@@ -485,13 +719,12 @@ function getCookie(name) {
             const cookie =
                 cookies[i].trim();
 
-
             if (
                 cookie.substring(
                     0,
                     name.length + 1
                 ) ===
-                (name + '=')
+                name + "="
             ) {
 
                 cookieValue =
@@ -509,7 +742,6 @@ function getCookie(name) {
 
     }
 
-
     return cookieValue;
 
 }
@@ -517,7 +749,7 @@ function getCookie(name) {
 
 /*
 =========================================================
-FORMATEO JSON
+JSON
 =========================================================
 */
 
@@ -527,11 +759,8 @@ function formatoJSON(valor) {
         valor === undefined ||
         valor === null
     ) {
-
         return "";
-
     }
-
 
     try {
 
@@ -542,7 +771,6 @@ function formatoJSON(valor) {
         );
 
     }
-
     catch (error) {
 
         return String(valor);
@@ -554,7 +782,7 @@ function formatoJSON(valor) {
 
 /*
 =========================================================
-MOSTRAR ORIGEN
+ORIGEN
 =========================================================
 */
 
@@ -565,10 +793,8 @@ function mostrarOrigen(origen) {
             "origenInterpretacion"
         );
 
-
     elemento.className =
         "origen-contenido";
-
 
     if (!origen) {
 
@@ -578,10 +804,8 @@ function mostrarOrigen(origen) {
 
     }
 
-
     if (
-        origen ===
-        "REGLA_SEMANTICA"
+        origen === "REGLA_SEMANTICA"
     ) {
 
         elemento.classList.add(
@@ -595,10 +819,8 @@ function mostrarOrigen(origen) {
 
     }
 
-
     if (
-        origen ===
-        "REGLA_PATRON"
+        origen === "REGLA_PATRON"
     ) {
 
         elemento.classList.add(
@@ -611,8 +833,6 @@ function mostrarOrigen(origen) {
         return;
 
     }
-
-
 
     if (
         origen === "QWEN"
@@ -629,9 +849,27 @@ function mostrarOrigen(origen) {
 
     }
 
-
     elemento.textContent =
         origen;
+
+}
+
+
+/*
+=========================================================
+INVALIDAR CORRECCIÓN PROBADA
+=========================================================
+*/
+
+function invalidarCorreccionProbada() {
+
+    correccionProbada = false;
+
+    document
+        .getElementById(
+            "btnGuardarRegla"
+        )
+        .disabled = true;
 
 }
 
@@ -644,25 +882,23 @@ CONSULTAR IA
 
 async function consultarIA() {
 
-
     const pregunta =
         document
-            .getElementById("pregunta")
+            .getElementById(
+                "pregunta"
+            )
             .value
             .trim();
-
 
     const status =
         document.getElementById(
             "status"
         );
 
-
     const boton =
         document.getElementById(
             "btnConsultar"
         );
-
 
     if (!pregunta) {
 
@@ -676,71 +912,56 @@ async function consultarIA() {
 
     }
 
-
     boton.disabled = true;
-
 
     status.className =
         "status loading";
 
-
     status.textContent =
         "Procesando consulta...";
 
-
-    /*
-    Limpiar resultado anterior
-    */
+    invalidarCorreccionProbada();
 
     mostrarOrigen(null);
-
-
-    document
-        .getElementById(
-            "patronSemantico"
-        )
-        .value = "";
-
-
-    document
-        .getElementById(
-            "intencionPatron"
-        )
-        .value = "";
-
 
     document
         .getElementById("raw")
         .textContent = "";
 
-
     document
-        .getElementById("normalizado")
+        .getElementById(
+            "normalizado"
+        )
         .textContent = "";
 
-
     document
-        .getElementById("resultado")
+        .getElementById(
+            "resultado"
+        )
         .textContent = "";
 
-
     document
-        .getElementById("respuesta")
+        .getElementById(
+            "respuesta"
+        )
         .textContent = "";
 
+    document
+        .getElementById(
+            "resultadoCorreccion"
+        )
+        .textContent =
+        "Todavía no se ha probado ninguna corrección.";
 
     try {
 
-
         const formData =
             new FormData();
-
 
         formData.append(
             "pregunta",
             pregunta
         );
-
 
         const response =
             await fetch(
@@ -755,14 +976,13 @@ async function consultarIA() {
                             )
                     },
 
-                    body: formData
+                    body:
+                        formData
                 }
             );
 
-
         const data =
             await response.json();
-
 
         if (
             !response.ok ||
@@ -778,9 +998,9 @@ async function consultarIA() {
 
 
         /*
-        -------------------------------------------------
+        -----------------------------------------------
         ORIGEN
-        -------------------------------------------------
+        -----------------------------------------------
         */
 
         mostrarOrigen(
@@ -789,13 +1009,15 @@ async function consultarIA() {
 
 
         /*
-        -------------------------------------------------
-        INTENCIÓN ORIGINAL
-        -------------------------------------------------
+        -----------------------------------------------
+        ORIGINAL
+        -----------------------------------------------
         */
 
         document
-            .getElementById("raw")
+            .getElementById(
+                "raw"
+            )
             .textContent =
             formatoJSON(
                 data.raw
@@ -803,129 +1025,64 @@ async function consultarIA() {
 
 
         /*
-        -------------------------------------------------
-        NORMALIZADOR
-        -------------------------------------------------
+        -----------------------------------------------
+        NORMALIZADO ORIGINAL
+        -----------------------------------------------
         */
 
+        ultimaIntencionNormalizada =
+            data.normalizado;
+
         document
-            .getElementById("normalizado")
+            .getElementById(
+                "normalizado"
+            )
             .textContent =
             formatoJSON(
                 data.normalizado
             );
 
-            ultimaIntencionNormalizada =
-                data.normalizado;
-
-
-            document
-                .getElementById(
-                    "btnGuardarRegla"
-                )
-                .disabled = false;
-
-
-            /*
-            -------------------------------------------------
-            IA-SEM003
-            SUGERENCIA AUTOMÁTICA DE PATRÓN
-            -------------------------------------------------
-            */
-
-            if (data.sugerencia_patron) {
-
-                document
-                    .getElementById(
-                        "patronSemantico"
-                    )
-                    .value =
-                    data.sugerencia_patron.patron || "";
-
-
-                document
-                    .getElementById(
-                        "intencionPatron"
-                    )
-                    .value =
-                    formatoJSON(
-                        data.sugerencia_patron.intencion
-                    );
-
-
-                const btnGuardarPatron =
-                    document.getElementById(
-                        "btnGuardarPatron"
-                    );
-
-
-                if (
-                    data.sugerencia_patron.ya_existe
-                ) {
-
-                    btnGuardarPatron.disabled = true;
-
-                    btnGuardarPatron.textContent =
-                        "Patrón ya existente";
-
-
-                    status.className =
-                        "status ok";
-
-
-                    status.textContent =
-                        "El patrón sugerido ya existe"
-                        + " (ID "
-                        + data.sugerencia_patron.regla_existente_id
-                        + ").";
-
-                }
-
-                else {
-
-                    btnGuardarPatron.disabled = false;
-
-                    btnGuardarPatron.textContent =
-                        "Aprobar y guardar patrón";
-
-                }
-
-            }
-
-            else {
-
-                document
-                    .getElementById(
-                        "patronSemantico"
-                    )
-                    .value = "";
-
-
-                document
-                    .getElementById(
-                        "intencionPatron"
-                    )
-                    .value = "";
-
-
-                
-                document
-                    .getElementById(
-                        "btnGuardarPatron"
-                    )
-                    .textContent =
-                    "Aprobar y guardar patrón";
-
-            }
 
         /*
-        -------------------------------------------------
-        ORM
-        -------------------------------------------------
+        -----------------------------------------------
+        COPIAR AUTOMÁTICAMENTE A CORRECCIÓN
+        -----------------------------------------------
         */
 
         document
-            .getElementById("resultado")
+            .getElementById(
+                "intencionCorregida"
+            )
+            .value =
+            formatoJSON(
+                data.normalizado
+            );
+
+
+        document
+            .getElementById(
+                "btnCopiarNormalizado"
+            )
+            .disabled = false;
+
+
+        document
+            .getElementById(
+                "btnProbarCorreccion"
+            )
+            .disabled = false;
+
+
+        /*
+        -----------------------------------------------
+        ORM ORIGINAL
+        -----------------------------------------------
+        */
+
+        document
+            .getElementById(
+                "resultado"
+            )
             .textContent =
             formatoJSON(
                 data.resultado
@@ -933,42 +1090,85 @@ async function consultarIA() {
 
 
         /*
-        -------------------------------------------------
-        RESPUESTA
-        -------------------------------------------------
+        -----------------------------------------------
+        RESPUESTA ORIGINAL
+        -----------------------------------------------
         */
 
         document
-            .getElementById("respuesta")
+            .getElementById(
+                "respuesta"
+            )
             .textContent =
             data.respuesta || "";
+
+
+        /*
+        -----------------------------------------------
+        SUGERENCIA PATRÓN
+        -----------------------------------------------
+        */
+
+        if (
+            data.sugerencia_patron
+        ) {
+
+            document
+                .getElementById(
+                    "patronSemantico"
+                )
+                .value =
+                data
+                    .sugerencia_patron
+                    .patron || "";
+
+            document
+                .getElementById(
+                    "intencionPatron"
+                )
+                .value =
+                formatoJSON(
+                    data
+                        .sugerencia_patron
+                        .intencion
+                );
+
+        }
+        else {
+
+            document
+                .getElementById(
+                    "patronSemantico"
+                )
+                .value = "";
+
+            document
+                .getElementById(
+                    "intencionPatron"
+                )
+                .value = "";
+
+        }
 
 
         status.className =
             "status ok";
 
-
         status.textContent =
-            "Consulta procesada correctamente.";
+            "Consulta procesada. "
+            + "Ahora puedes revisar o corregir la intención.";
 
     }
-
-
     catch (error) {
-
 
         status.className =
             "status error";
-
 
         status.textContent =
             error.message;
 
     }
-
-
     finally {
-
 
         boton.disabled = false;
 
@@ -977,28 +1177,96 @@ async function consultarIA() {
 }
 
 
+/*
+=========================================================
+RESTAURAR ORIGINAL
+=========================================================
+*/
 
-async function guardarComoRegla() {
+function copiarNormalizadoACorreccion() {
 
+    if (
+        !ultimaIntencionNormalizada
+    ) {
+        return;
+    }
+
+    document
+        .getElementById(
+            "intencionCorregida"
+        )
+        .value =
+        formatoJSON(
+            ultimaIntencionNormalizada
+        );
+
+    invalidarCorreccionProbada();
+
+    document
+        .getElementById(
+            "resultadoCorreccion"
+        )
+        .textContent =
+        "La corrección fue restaurada "
+        + "a la interpretación original.";
+
+}
+
+
+/*
+=========================================================
+SI EL USUARIO EDITA EL JSON,
+LA PRUEBA ANTERIOR YA NO ES VÁLIDA
+=========================================================
+*/
+
+document
+    .getElementById(
+        "intencionCorregida"
+    )
+    .addEventListener(
+        "input",
+        function () {
+
+            invalidarCorreccionProbada();
+
+        }
+    );
+
+
+/*
+=========================================================
+PROBAR CORRECCIÓN
+=========================================================
+*/
+
+async function probarCorreccion() {
 
     const pregunta =
         document
-            .getElementById("pregunta")
+            .getElementById(
+                "pregunta"
+            )
             .value
             .trim();
 
+    const intencionTexto =
+        document
+            .getElementById(
+                "intencionCorregida"
+            )
+            .value
+            .trim();
 
     const status =
         document.getElementById(
             "status"
         );
 
-
     const boton =
         document.getElementById(
-            "btnGuardarRegla"
+            "btnProbarCorreccion"
         );
-
 
     if (!pregunta) {
 
@@ -1006,57 +1274,73 @@ async function guardarComoRegla() {
             "status error";
 
         status.textContent =
-            "No hay pregunta para guardar.";
+            "No existe una pregunta.";
 
         return;
 
     }
 
-
-    if (!ultimaIntencionNormalizada) {
+    if (!intencionTexto) {
 
         status.className =
             "status error";
 
         status.textContent =
-            "No existe una interpretación normalizada para guardar.";
+            "La intención corregida está vacía.";
 
         return;
 
     }
 
+    try {
+
+        JSON.parse(
+            intencionTexto
+        );
+
+    }
+    catch (error) {
+
+        status.className =
+            "status error";
+
+        status.textContent =
+            "La intención corregida "
+            + "no contiene JSON válido.";
+
+        return;
+
+    }
 
     boton.disabled = true;
 
+    invalidarCorreccionProbada();
 
     status.className =
         "status loading";
 
-
     status.textContent =
-        "Guardando regla semántica...";
-
+        "Probando corrección sin guardar...";
 
     try {
 
-
         const formData =
             new FormData();
-
 
         formData.append(
             "pregunta",
             pregunta
         );
 
-
         formData.append(
             "intencion",
-            JSON.stringify(
-                ultimaIntencionNormalizada
-            )
+            intencionTexto
         );
 
+        formData.append(
+            "modo",
+            "probar"
+        );
 
         const response =
             await fetch(
@@ -1071,14 +1355,187 @@ async function guardarComoRegla() {
                             )
                     },
 
-                    body: formData
+                    body:
+                        formData
                 }
             );
-
 
         const data =
             await response.json();
 
+        if (
+            !response.ok ||
+            !data.ok
+        ) {
+
+            throw new Error(
+                data.error ||
+                "No fue posible probar la corrección."
+            );
+
+        }
+
+        correccionProbada = true;
+
+        document
+            .getElementById(
+                "btnGuardarRegla"
+            )
+            .disabled = false;
+
+        document
+            .getElementById(
+                "resultadoCorreccion"
+            )
+            .innerHTML =
+            "<strong>RESULTADO ORM CORREGIDO</strong>"
+            + "<pre>"
+            + escapeHtml(
+                formatoJSON(
+                    data.resultado
+                )
+            )
+            + "</pre>"
+            + "<strong>RESPUESTA</strong>"
+            + "<pre>"
+            + escapeHtml(
+                data.respuesta || ""
+            )
+            + "</pre>";
+
+        status.className =
+            "status ok";
+
+        status.textContent =
+            data.mensaje;
+
+    }
+    catch (error) {
+
+        correccionProbada = false;
+
+        document
+            .getElementById(
+                "btnGuardarRegla"
+            )
+            .disabled = true;
+
+        status.className =
+            "status error";
+
+        status.textContent =
+            error.message;
+
+    }
+    finally {
+
+        boton.disabled = false;
+
+    }
+
+}
+
+
+/*
+=========================================================
+GUARDAR REGLA EXACTA
+=========================================================
+*/
+
+async function guardarComoRegla() {
+
+    const pregunta =
+        document
+            .getElementById(
+                "pregunta"
+            )
+            .value
+            .trim();
+
+    const intencionTexto =
+        document
+            .getElementById(
+                "intencionCorregida"
+            )
+            .value
+            .trim();
+
+    const status =
+        document.getElementById(
+            "status"
+        );
+
+    const boton =
+        document.getElementById(
+            "btnGuardarRegla"
+        );
+
+    if (
+        !correccionProbada
+    ) {
+
+        status.className =
+            "status error";
+
+        status.textContent =
+            "Primero debes probar la corrección.";
+
+        return;
+
+    }
+
+    boton.disabled = true;
+
+    status.className =
+        "status loading";
+
+    status.textContent =
+        "Guardando regla exacta...";
+
+    try {
+
+        JSON.parse(
+            intencionTexto
+        );
+
+        const formData =
+            new FormData();
+
+        formData.append(
+            "pregunta",
+            pregunta
+        );
+
+        formData.append(
+            "intencion",
+            intencionTexto
+        );
+
+        formData.append(
+            "modo",
+            "guardar"
+        );
+
+        const response =
+            await fetch(
+                "/ia/test-guardar-regla/",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "X-CSRFToken":
+                            getCookie(
+                                "csrftoken"
+                            )
+                    },
+
+                    body:
+                        formData
+                }
+            );
+
+        const data =
+            await response.json();
 
         if (
             !response.ok ||
@@ -1092,33 +1549,23 @@ async function guardarComoRegla() {
 
         }
 
-
         status.className =
             "status ok";
-
 
         status.textContent =
             data.mensaje;
 
-
     }
-
-
     catch (error) {
-
 
         status.className =
             "status error";
-
 
         status.textContent =
             error.message;
 
     }
-
-
     finally {
-
 
         boton.disabled = false;
 
@@ -1126,28 +1573,40 @@ async function guardarComoRegla() {
 
 }
 
+
+/*
+=========================================================
+GUARDAR PATRÓN
+=========================================================
+*/
+
 async function guardarPatron() {
 
     const patron =
         document
-            .getElementById("patronSemantico")
+            .getElementById(
+                "patronSemantico"
+            )
             .value
             .trim();
 
     const intencion =
         document
-            .getElementById("intencionPatron")
+            .getElementById(
+                "intencionPatron"
+            )
             .value
             .trim();
 
     const status =
-        document.getElementById("status");
+        document.getElementById(
+            "status"
+        );
 
     const boton =
         document.getElementById(
             "btnGuardarPatron"
         );
-
 
     if (!patron) {
 
@@ -1161,7 +1620,6 @@ async function guardarPatron() {
 
     }
 
-
     if (!intencion) {
 
         status.className =
@@ -1174,6 +1632,42 @@ async function guardarPatron() {
 
     }
 
+    if (
+        !/\{[A-ZÁÉÍÓÚÑ0-9_]+\}/i.test(
+            patron
+        )
+    ) {
+
+        status.className =
+            "status error";
+
+        status.textContent =
+            "Un patrón debe contener al menos "
+            + "una variable, por ejemplo {DISCIPLINA}.";
+
+        return;
+
+    }
+
+    try {
+
+        JSON.parse(
+            intencion
+        );
+
+    }
+    catch (error) {
+
+        status.className =
+            "status error";
+
+        status.textContent =
+            "La intención del patrón "
+            + "no contiene JSON válido.";
+
+        return;
+
+    }
 
     boton.disabled = true;
 
@@ -1183,31 +1677,20 @@ async function guardarPatron() {
     status.textContent =
         "Guardando patrón semántico...";
 
-
     try {
-
-        /*
-        Validación JSON local antes de enviar.
-        */
-
-        JSON.parse(intencion);
-
 
         const formData =
             new FormData();
-
 
         formData.append(
             "patron",
             patron
         );
 
-
         formData.append(
             "intencion",
             intencion
         );
-
 
         const response =
             await fetch(
@@ -1222,14 +1705,13 @@ async function guardarPatron() {
                             )
                     },
 
-                    body: formData
+                    body:
+                        formData
                 }
             );
 
-
         const data =
             await response.json();
-
 
         if (
             !response.ok ||
@@ -1243,7 +1725,6 @@ async function guardarPatron() {
 
         }
 
-
         status.className =
             "status ok";
 
@@ -1251,32 +1732,15 @@ async function guardarPatron() {
             data.mensaje;
 
     }
-
-
     catch (error) {
 
         status.className =
             "status error";
 
-        if (
-            error instanceof SyntaxError
-        ) {
-
-            status.textContent =
-                "La intención del patrón no contiene JSON válido.";
-
-        }
-
-        else {
-
-            status.textContent =
-                error.message;
-
-        }
+        status.textContent =
+            error.message;
 
     }
-
-
     finally {
 
         boton.disabled = false;
@@ -1286,7 +1750,39 @@ async function guardarPatron() {
 }
 
 
+/*
+=========================================================
+ESCAPAR HTML
+=========================================================
+*/
 
+function escapeHtml(texto) {
+
+    return String(
+        texto
+    )
+    .replaceAll(
+        "&",
+        "&amp;"
+    )
+    .replaceAll(
+        "<",
+        "&lt;"
+    )
+    .replaceAll(
+        ">",
+        "&gt;"
+    )
+    .replaceAll(
+        '"',
+        "&quot;"
+    )
+    .replaceAll(
+        "'",
+        "&#039;"
+    );
+
+}
 
 
 /*
@@ -1297,22 +1793,56 @@ LIMPIAR
 
 function limpiar() {
 
-    ultimaIntencionNormalizada = null;
+    ultimaIntencionNormalizada =
+        null;
+
+    correccionProbada =
+        false;
 
     document
         .getElementById(
-            "btnGuardarRegla"
+            "pregunta"
         )
-        .disabled = true;
-
-
-    document
-        .getElementById("pregunta")
         .value = "";
-
 
     mostrarOrigen(null);
 
+    document
+        .getElementById(
+            "raw"
+        )
+        .textContent = "";
+
+    document
+        .getElementById(
+            "normalizado"
+        )
+        .textContent = "";
+
+    document
+        .getElementById(
+            "resultado"
+        )
+        .textContent = "";
+
+    document
+        .getElementById(
+            "respuesta"
+        )
+        .textContent = "";
+
+    document
+        .getElementById(
+            "intencionCorregida"
+        )
+        .value = "";
+
+    document
+        .getElementById(
+            "resultadoCorreccion"
+        )
+        .textContent =
+        "Todavía no se ha probado ninguna corrección.";
 
     document
         .getElementById(
@@ -1320,51 +1850,34 @@ function limpiar() {
         )
         .value = "";
 
-
     document
         .getElementById(
             "intencionPatron"
         )
         .value = "";
 
-
     document
         .getElementById(
-            "btnGuardarPatron"
+            "btnGuardarRegla"
         )
         .disabled = true;
 
+    document
+        .getElementById(
+            "btnProbarCorreccion"
+        )
+        .disabled = true;
 
     document
         .getElementById(
-            "btnGuardarPatron"
+            "btnCopiarNormalizado"
         )
-        .textContent =
-        "Aprobar y guardar patrón";
-
+        .disabled = true;
 
     document
-        .getElementById("raw")
-        .textContent = "";
-
-
-    document
-        .getElementById("normalizado")
-        .textContent = "";
-
-
-    document
-        .getElementById("resultado")
-        .textContent = "";
-
-
-    document
-        .getElementById("respuesta")
-        .textContent = "";
-
-
-    document
-        .getElementById("status")
+        .getElementById(
+            "status"
+        )
         .textContent = "";
 
 }
@@ -1378,167 +1891,144 @@ COPIAR DIAGNÓSTICO
 
 async function copiarTodo() {
 
+    const contenido = [
 
-    const pregunta =
+        "PREGUNTA",
+        "==============================",
         document
-            .getElementById("pregunta")
-            .value;
+            .getElementById(
+                "pregunta"
+            )
+            .value,
 
+        "",
 
-    const origen =
+        "ORIGEN INTERPRETACIÓN",
+        "==============================",
         document
             .getElementById(
                 "origenInterpretacion"
             )
-            .textContent;
+            .textContent,
 
+        "",
 
-    const raw =
+        "INTENCIÓN ORIGINAL",
+        "==============================",
         document
-            .getElementById("raw")
-            .textContent;
+            .getElementById(
+                "raw"
+            )
+            .textContent,
 
+        "",
 
-    const normalizado =
+        "JSON NORMALIZADO",
+        "==============================",
         document
             .getElementById(
                 "normalizado"
             )
-            .textContent;
+            .textContent,
 
+        "",
 
-    const resultado =
+        "RESULTADO ORM ORIGINAL",
+        "==============================",
         document
             .getElementById(
                 "resultado"
             )
-            .textContent;
+            .textContent,
 
+        "",
 
-    const respuesta =
+        "RESPUESTA ORIGINAL",
+        "==============================",
         document
             .getElementById(
                 "respuesta"
             )
-            .textContent;
+            .textContent,
 
+        "",
 
-    const patronSugerido =
+        "INTENCIÓN CORREGIDA",
+        "==============================",
+        document
+            .getElementById(
+                "intencionCorregida"
+            )
+            .value,
+
+        "",
+
+        "RESULTADO CORRECCIÓN",
+        "==============================",
+        document
+            .getElementById(
+                "resultadoCorreccion"
+            )
+            .innerText,
+
+        "",
+
+        "PATRÓN",
+        "==============================",
         document
             .getElementById(
                 "patronSemantico"
             )
-            .value;
+            .value,
 
+        "",
 
-    const intencionPatron =
+        "INTENCIÓN DEL PATRÓN",
+        "==============================",
         document
             .getElementById(
                 "intencionPatron"
             )
-            .value;
+            .value,
 
-
-    const texto = `PREGUNTA
-==============================
-${pregunta}
-
-
-ORIGEN INTERPRETACIÓN
-==============================
-${origen}
-
-
-INTENCIÓN ORIGINAL
-==============================
-${raw}
-
-
-JSON NORMALIZADO
-==============================
-${normalizado}
-
-
-RESULTADO ORM
-==============================
-${resultado}
-
-
-RESPUESTA
-==============================
-${respuesta}
-
-
-PATRÓN SUGERIDO
-==============================
-${patronSugerido}
-
-
-INTENCIÓN DEL PATRÓN
-==============================
-${intencionPatron}
-`;
-
+    ].join(
+        "\n"
+    );
 
     try {
 
-
-        await navigator
-            .clipboard
-            .writeText(texto);
-
+        await navigator.clipboard.writeText(
+            contenido
+        );
 
         const status =
             document.getElementById(
                 "status"
             );
 
-
         status.className =
             "status ok";
 
-
         status.textContent =
-            "Diagnóstico copiado al portapapeles.";
+            "Diagnóstico copiado.";
 
     }
-
-
     catch (error) {
 
+        const status =
+            document.getElementById(
+                "status"
+            );
 
-        alert(
-            "No fue posible copiar automáticamente."
-        );
+        status.className =
+            "status error";
+
+        status.textContent =
+            "No fue posible copiar el diagnóstico.";
 
     }
 
 }
-
-
-/*
-=========================================================
-CTRL + ENTER
-=========================================================
-*/
-
-document
-    .getElementById("pregunta")
-    .addEventListener(
-        "keydown",
-        function(event) {
-
-            if (
-                event.ctrlKey &&
-                event.key === "Enter"
-            ) {
-
-                consultarIA();
-
-            }
-
-        }
-    );
 
 
 </script>
