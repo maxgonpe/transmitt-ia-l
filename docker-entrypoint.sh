@@ -1,7 +1,10 @@
 #!/bin/bash
 set -e
 
+
 echo "🚀 Iniciando aplicación Condocdat..."
+echo "🚀 Iniciando aplicación Transmitt-ia-l..."
+
 
 mkdir -p /app/data
 mkdir -p /app/media

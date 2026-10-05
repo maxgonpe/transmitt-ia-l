@@ -59,6 +59,7 @@ services:
 
     labels:
       traefik.enable: "true"
+      traefik.docker.network: "traefik_default"
       traefik.http.routers.transmitt-ia-l.entrypoints: "websecure"
       traefik.http.routers.transmitt-ia-l.rule: "Host(`transmitt-ia-l.netgogo.cl`)"
       traefik.http.routers.transmitt-ia-l.tls.certresolver: "letsencrypt"

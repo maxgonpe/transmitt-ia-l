@@ -10,7 +10,7 @@ class OllamaError(RuntimeError):
 
 class OllamaProvider(AIProvider):
     def __init__(self):
-        self.base_url = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
+        self.base_url = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
         self.model = os.environ.get(
             "OLLAMA_MODEL",
             "qwen3:4b-instruct-2507-q4_K_M",
