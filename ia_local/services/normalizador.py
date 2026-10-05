@@ -13,10 +13,6 @@ from ..domain.catalogo import (
 from .interprete import InterpretacionInvalida
 
 
-# ============================================================
-# NORMALIZACIÓN DE PROCESOS
-# ============================================================
-
 PROCESOS_DOCUMENTO = {
     "ELECTRICO": "EL",
     "ELÉCTRICO": "EL",
@@ -28,10 +24,6 @@ PROCESOS_DOCUMENTO = {
     "CORRIENTES DÉBILES": "CD",
 }
 
-
-# ============================================================
-# ESTADOS DOCUMENTALES
-# ============================================================
 
 ESTADOS_DOCUMENTO = {
     "APROBADO": "APPROVED",
@@ -84,16 +76,13 @@ ESTADOS_DOCUMENTO = {
 }
 
 
-# ============================================================
-# ESTADOS DE LIBERACIÓN
-# ============================================================
-
 ESTADOS_LIBERACION_DOCUMENTO = {
     "LIBERADO": "LIBERADO",
     "LIBERADOS": "LIBERADO",
 
     "PENDIENTE DE LIBERACION": "PENDIENTE",
     "PENDIENTE DE LIBERACIÓN": "PENDIENTE",
+
     "PENDIENTES DE LIBERACION": "PENDIENTE",
     "PENDIENTES DE LIBERACIÓN": "PENDIENTE",
 
@@ -104,10 +93,6 @@ ESTADOS_LIBERACION_DOCUMENTO = {
     "RECHAZADOS": "RECHAZADO",
 }
 
-
-# ============================================================
-# MESES
-# ============================================================
 
 MESES = {
     "enero": 1,
@@ -126,17 +111,15 @@ MESES = {
 }
 
 
-# ============================================================
-# HELPERS
-# ============================================================
-
 def _txt(valor):
     """
-    Convierte texto a minúsculas y elimina tildes.
+    Convierte texto a minúsculas y elimina acentos.
 
     Ejemplo:
-        "Revisión Eléctrica"
-        -> "revision electrica"
+
+        "Cuáles están pendientes"
+            ↓
+        "cuales estan pendientes"
     """
 
     valor = unicodedata.normalize(
@@ -160,8 +143,17 @@ def _vacio(valor):
     )
 
 
-def _periodo_desde_pregunta(pregunta):
-    texto = _txt(pregunta)
+def _periodo_desde_pregunta(
+    pregunta,
+):
+    """
+    Detecta fechas y períodos simples
+    directamente desde lenguaje natural.
+    """
+
+    texto = _txt(
+        pregunta
+    )
 
     anio_match = re.search(
         r"\b(20\d{2})\b",
@@ -169,14 +161,17 @@ def _periodo_desde_pregunta(pregunta):
     )
 
     anio = (
-        int(anio_match.group(1))
+        int(
+            anio_match.group(1)
+        )
         if anio_match
         else date.today().year
     )
 
-    # --------------------------------------------------------
-    # Mes + año
-    # --------------------------------------------------------
+
+    # ========================================================
+    # MES
+    # ========================================================
 
     for nombre, mes in MESES.items():
 
@@ -184,6 +179,7 @@ def _periodo_desde_pregunta(pregunta):
             rf"\b{nombre}\b",
             texto,
         ):
+
             inicio = date(
                 anio,
                 mes,
@@ -191,9 +187,17 @@ def _periodo_desde_pregunta(pregunta):
             )
 
             siguiente = (
-                date(anio + 1, 1, 1)
+                date(
+                    anio + 1,
+                    1,
+                    1,
+                )
                 if mes == 12
-                else date(anio, mes + 1, 1)
+                else date(
+                    anio,
+                    mes + 1,
+                    1,
+                )
             )
 
             return (
@@ -204,9 +208,10 @@ def _periodo_desde_pregunta(pregunta):
                 ).isoformat(),
             )
 
-    # --------------------------------------------------------
-    # YYYY-MM-DD
-    # --------------------------------------------------------
+
+    # ========================================================
+    # FECHA ISO
+    # ========================================================
 
     iso = re.search(
         r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\b",
@@ -214,6 +219,7 @@ def _periodo_desde_pregunta(pregunta):
     )
 
     if iso:
+
         valor = date(
             *(
                 int(x)
@@ -221,11 +227,15 @@ def _periodo_desde_pregunta(pregunta):
             )
         ).isoformat()
 
-        return valor, valor
+        return (
+            valor,
+            valor,
+        )
 
-    # --------------------------------------------------------
-    # DD/MM/YYYY o DD-MM-YYYY
-    # --------------------------------------------------------
+
+    # ========================================================
+    # FECHA DD/MM/YYYY
+    # ========================================================
 
     europea = re.search(
         r"\b(\d{1,2})[/-](\d{1,2})[/-](20\d{2})\b",
@@ -245,23 +255,137 @@ def _periodo_desde_pregunta(pregunta):
             dia,
         ).isoformat()
 
-        return valor, valor
+        return (
+            valor,
+            valor,
+        )
 
-    return None, None
+
+    return (
+        None,
+        None,
+    )
 
 
-# ============================================================
-# NORMALIZADOR PRINCIPAL
-# ============================================================
+def _pide_conteo(
+    texto,
+):
+    """
+    Detecta intención de conocer cantidad.
+    """
 
-def normalizar_intencion(raw, pregunta=""):
+    return bool(
+        re.search(
+            r"\b("
+            r"cuantos|"
+            r"cuantas|"
+            r"cantidad|"
+            r"total|"
+            r"numero\s+de"
+            r")\b",
+            texto,
+        )
+    )
 
-    if not isinstance(raw, dict):
+
+def _pide_listado(
+    texto,
+):
+    """
+    Detecta intención de obtener/ver registros.
+
+    Esta función es independiente de _pide_conteo
+    porque una misma pregunta puede pedir ambas cosas.
+
+    Ejemplo:
+
+        cuantas rdi pendientes hay
+        y cuales son esas rdi
+
+    pide conteo = True
+    pide listado = True
+    """
+
+    patrones = (
+
+        r"\bcuales\b",
+
+        r"\bcuales\s+son\b",
+
+        r"\bdime\s+cuales\b",
+
+        r"\blista\b",
+
+        r"\blistar\b",
+
+        r"\blistame\b",
+
+        r"\bmuestra\b",
+
+        r"\bmuestrame\b",
+
+        r"\bmostrar\b",
+
+        r"\bver\b",
+
+        r"\bdame\b",
+
+        r"\bbusca\b",
+
+        r"\bencuentra\b",
+
+        r"\bque\s+rdi\b",
+
+        r"\bque\s+documentos\b",
+
+        r"\bque\s+registros\b",
+    )
+
+    return any(
+        re.search(
+            patron,
+            texto,
+        )
+        for patron in patrones
+    )
+
+
+def normalizar_intencion(
+    raw,
+    pregunta="",
+):
+    """
+    Normaliza la intención generada por Qwen
+    o recuperada desde memoria semántica.
+
+    La salida debe respetar siempre el contrato:
+
+    {
+        "tema": ...,
+        "operacion": ...,
+        "filtros": {...},
+        "cantidad": ...,
+        "orden": ...
+    }
+    """
+
+    if not isinstance(
+        raw,
+        dict,
+    ):
+
         raise InterpretacionInvalida(
             "La intención no es un objeto."
         )
 
-    tema = raw.get("tema")
+
+    # ========================================================
+    # CONTRATO BASE
+    # ========================================================
+
+    tema = raw.get(
+        "tema"
+    )
 
     operacion = raw.get(
         "operacion",
@@ -270,9 +394,15 @@ def normalizar_intencion(raw, pregunta=""):
 
     filtros = {
         clave: valor
-        for clave, valor
-        in (raw.get("filtros") or {}).items()
-        if not _vacio(valor)
+
+        for clave, valor in (
+            raw.get("filtros")
+            or {}
+        ).items()
+
+        if not _vacio(
+            valor
+        )
     }
 
     cantidad = raw.get(
@@ -285,18 +415,30 @@ def normalizar_intencion(raw, pregunta=""):
         "ninguno",
     )
 
-    # --------------------------------------------------------
-    # Validar dominio
-    # --------------------------------------------------------
+
+    # ========================================================
+    # VALIDAR TEMA
+    # ========================================================
 
     if tema not in DOMINIOS:
+
         raise InterpretacionInvalida(
             f"Tema no autorizado: {tema}"
         )
 
-    # --------------------------------------------------------
-    # Proceso documental
-    # --------------------------------------------------------
+
+    # ========================================================
+    # TEXTO NORMALIZADO
+    # ========================================================
+
+    texto = _txt(
+        pregunta
+    )
+
+
+    # ========================================================
+    # DOCUMENTOS: PROCESO
+    # ========================================================
 
     if (
         tema == "documentos"
@@ -314,28 +456,39 @@ def normalizar_intencion(raw, pregunta=""):
             )
         )
 
-    # --------------------------------------------------------
-    # Operación
-    # --------------------------------------------------------
+
+    # ========================================================
+    # OPERACIÓN INICIAL
+    # ========================================================
 
     if operacion not in OPERACIONES:
+
         operacion = "listar"
 
-    # --------------------------------------------------------
-    # Eliminar campos no autorizados
-    # --------------------------------------------------------
 
-    permitidos = CAMPOS_AUTORIZADOS[tema]
+    # ========================================================
+    # FILTROS AUTORIZADOS
+    # ========================================================
+
+    permitidos = (
+        CAMPOS_AUTORIZADOS[
+            tema
+        ]
+    )
 
     filtros = {
         clave: valor
-        for clave, valor in filtros.items()
+
+        for clave, valor
+        in filtros.items()
+
         if clave in permitidos
     }
 
-    # --------------------------------------------------------
-    # Estado documental / liberación
-    # --------------------------------------------------------
+
+    # ========================================================
+    # DOCUMENTOS: ESTADO
+    # ========================================================
 
     if (
         tema == "documentos"
@@ -346,123 +499,48 @@ def normalizar_intencion(raw, pregunta=""):
             filtros["estado"]
         ).strip().upper()
 
+
         # ----------------------------------------------------
-        # Estado de liberación
+        # ESTADOS DE LIBERACIÓN
         # ----------------------------------------------------
 
-        if estado in ESTADOS_LIBERACION_DOCUMENTO:
+        if (
+            estado
+            in ESTADOS_LIBERACION_DOCUMENTO
+        ):
 
             filtros.pop(
                 "estado",
                 None,
             )
 
-            filtros["estado_liberacion"] = (
+            filtros[
+                "estado_liberacion"
+            ] = (
                 ESTADOS_LIBERACION_DOCUMENTO[
                     estado
                 ]
             )
 
+
         # ----------------------------------------------------
-        # Estado documental normal
+        # ESTADOS DOCUMENTALES
         # ----------------------------------------------------
 
         else:
 
-            filtros["estado"] = (
+            filtros[
+                "estado"
+            ] = (
                 ESTADOS_DOCUMENTO.get(
                     estado,
                     estado,
                 )
             )
 
-    # ========================================================
-    # TEXTO NORMALIZADO DE LA PREGUNTA
-    # ========================================================
-
-    texto = _txt(pregunta)
 
     # ========================================================
-    # RECUPERACIÓN DE REVISIÓN DESDE LA PREGUNTA
-    # ========================================================
-    #
-    # Esto corrige errores previsibles de Qwen.
-    #
-    # Ejemplo:
-    #
-    # Pregunta:
-    #   "documentos candidatos a revisión B"
-    #
-    # Qwen puede devolver:
-    #
-    #   tipo_documento = "revisión"
-    #   vendor = "B"
-    #
-    # El normalizador recupera:
-    #
-    #   revision = "B"
-    #
-    # ========================================================
-
-    if tema == "documentos":
-
-        match_revision = re.search(
-            r"\brevision\s+([a-z]|\d+)\b",
-            texto,
-        )
-
-        if match_revision:
-
-            valor_revision = (
-                match_revision
-                .group(1)
-                .upper()
-            )
-
-            filtros["revision"] = (
-                valor_revision
-            )
-
-            # ------------------------------------------------
-            # Qwen puede confundir "revisión"
-            # con tipo_documento.
-            # ------------------------------------------------
-
-            tipo_documento = str(
-                filtros.get(
-                    "tipo_documento",
-                    "",
-                )
-            ).strip()
-
-            tipo_documento_normalizado = _txt(
-                tipo_documento
-            )
-
-            # Qwen puede colocar erróneamente la revisión
-            # dentro de tipo_documento:
-            #
-            #   "revisión"
-            #   "revisión B"
-            #   "revision 0"
-            #   "rev B"
-            #
-            # Si ya recuperamos la revisión desde la pregunta,
-            # ese filtro no corresponde y debe eliminarse.
-            if (
-                tipo_documento_normalizado == "revision"
-                or tipo_documento_normalizado.startswith("revision ")
-                or tipo_documento_normalizado == "rev"
-                or tipo_documento_normalizado.startswith("rev ")
-            ):
-                filtros.pop(
-                    "tipo_documento",
-                    None,
-                )
-                        
-
-    # ========================================================
-    # NORMALIZACIÓN DE REVISIÓN
+    # DOCUMENTOS: REVISIÓN
     # ========================================================
 
     if (
@@ -474,9 +552,6 @@ def normalizar_intencion(raw, pregunta=""):
             filtros["revision"]
         ).strip().upper()
 
-        # ----------------------------------------------------
-        # ¿La pregunta habla de candidato?
-        # ----------------------------------------------------
 
         es_candidato = bool(
             re.search(
@@ -490,15 +565,9 @@ def normalizar_intencion(raw, pregunta=""):
             )
         )
 
+
         # ----------------------------------------------------
-        # Qwen entrega:
-        #
-        # 0
-        # 1
-        # 2
-        # A
-        # B
-        # C
+        # 0 / 1 / 2 / A / B / C
         # ----------------------------------------------------
 
         if re.fullmatch(
@@ -508,22 +577,24 @@ def normalizar_intencion(raw, pregunta=""):
 
             if es_candidato:
 
-                filtros["revision"] = (
-                    f"CANDIDATO REV {revision}"
+                filtros[
+                    "revision"
+                ] = (
+                    f"CANDIDATO REV "
+                    f"{revision}"
                 )
 
             else:
 
-                filtros["revision"] = (
+                filtros[
+                    "revision"
+                ] = (
                     f"REV {revision}"
                 )
 
+
         # ----------------------------------------------------
-        # Ya viene:
-        #
-        # REV 0
-        # REV 1
-        # REV B
+        # REV 0 / REV B
         # ----------------------------------------------------
 
         elif revision.startswith(
@@ -532,39 +603,42 @@ def normalizar_intencion(raw, pregunta=""):
 
             if es_candidato:
 
-                filtros["revision"] = (
-                    f"CANDIDATO {revision}"
+                filtros[
+                    "revision"
+                ] = (
+                    f"CANDIDATO "
+                    f"{revision}"
                 )
 
             else:
 
-                filtros["revision"] = (
-                    revision
-                )
+                filtros[
+                    "revision"
+                ] = revision
+
 
         # ----------------------------------------------------
-        # Ya viene completamente normalizado:
-        #
-        # CANDIDATO REV 0
-        # CANDIDATO REV B
+        # YA NORMALIZADO
         # ----------------------------------------------------
 
         elif revision.startswith(
             "CANDIDATO REV "
         ):
 
-            filtros["revision"] = (
-                revision
-            )
+            filtros[
+                "revision"
+            ] = revision
+
 
     # ========================================================
-    # SELLO DE LIBERACIÓN
+    # DOCUMENTOS: SELLOS
     # ========================================================
 
     if tema == "documentos":
 
+
         # ----------------------------------------------------
-        # Sello NO verificado
+        # SELLO NO VERIFICADO
         # ----------------------------------------------------
 
         if re.search(
@@ -580,8 +654,7 @@ def normalizar_intencion(raw, pregunta=""):
                 "sello_liberado_verificado"
             ] = False
 
-            # Qwen puede confundir
-            # "verificado" con "informado".
+
             if str(
                 filtros.get(
                     "informado",
@@ -594,8 +667,9 @@ def normalizar_intencion(raw, pregunta=""):
                     None,
                 )
 
+
         # ----------------------------------------------------
-        # Sello verificado
+        # SELLO VERIFICADO
         # ----------------------------------------------------
 
         elif re.search(
@@ -611,8 +685,7 @@ def normalizar_intencion(raw, pregunta=""):
                 "sello_liberado_verificado"
             ] = True
 
-            # Qwen puede confundir
-            # "verificado" con "informado".
+
             if str(
                 filtros.get(
                     "informado",
@@ -625,12 +698,14 @@ def normalizar_intencion(raw, pregunta=""):
                     None,
                 )
 
+
     # ========================================================
-    # BÚSQUEDA EN CONTENIDO
+    # CONTENIDO EXTRAÍDO
     # ========================================================
 
     if (
-        tema in {
+        tema
+        in {
             "documentos",
             "adjuntos",
         }
@@ -639,6 +714,7 @@ def normalizar_intencion(raw, pregunta=""):
                 patron,
                 texto,
             )
+
             for patron in (
                 r"\bmenciona",
                 r"\bcontenga",
@@ -651,96 +727,151 @@ def normalizar_intencion(raw, pregunta=""):
         )
     ):
 
-        filtros["solo_contenido"] = True
+        filtros[
+            "solo_contenido"
+        ] = True
+
 
     # ========================================================
-    # CONTAR / LISTAR
+    # DETECCIÓN DE OPERACIÓN DESDE LA PREGUNTA
     # ========================================================
 
-    if re.search(
-        r"\b("
-        r"cuantos|"
-        r"cuantas|"
-        r"cantidad|"
-        r"total|"
-        r"numero de"
-        r")\b",
-        texto,
+    pide_conteo = (
+        _pide_conteo(
+            texto
+        )
+    )
+
+    pide_listado = (
+        _pide_listado(
+            texto
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # CASO NUEVO:
+    #
+    # "cuantas ... hay y cuales son"
+    #
+    # El listado ya incluye:
+    #
+    # - total
+    # - resultados
+    #
+    # Por eso es más completo que "contar".
+    # --------------------------------------------------------
+
+    if (
+        pide_conteo
+        and pide_listado
     ):
 
-        operacion = "contar"
+        operacion = "listar"
+
         cantidad = "todos"
 
-    elif re.search(
-        r"\b("
-        r"lista|"
-        r"listame|"
-        r"muestrame|"
-        r"dame|"
-        r"cuales|"
-        r"busca|"
-        r"encuentra"
-        r")\b",
-        texto,
-    ):
 
-        if operacion != "detalle":
+    # --------------------------------------------------------
+    # SOLO CONTEO
+    # --------------------------------------------------------
+
+    elif pide_conteo:
+
+        operacion = "contar"
+
+        cantidad = "todos"
+
+
+    # --------------------------------------------------------
+    # SOLO LISTADO
+    # --------------------------------------------------------
+
+    elif pide_listado:
+
+        if (
+            operacion
+            != "detalle"
+        ):
+
             operacion = "listar"
 
+
     # ========================================================
-    # ORDEN TEMPORAL
+    # ORDEN / DETALLE
     # ========================================================
 
     if re.search(
         r"\b("
         r"ultimo|"
         r"ultima|"
-        r"mas reciente"
+        r"mas\s+reciente"
         r")\b",
         texto,
     ):
 
         cantidad = "uno"
+
         orden = "reciente"
 
         if operacion == "listar":
+
             operacion = "detalle"
+
 
     elif re.search(
         r"\b("
         r"primero|"
         r"primera|"
-        r"mas antiguo|"
-        r"mas antigua"
+        r"mas\s+antiguo|"
+        r"mas\s+antigua"
         r")\b",
         texto,
     ):
 
         cantidad = "uno"
+
         orden = "antiguo"
 
         if operacion == "listar":
+
             operacion = "detalle"
 
+
     # ========================================================
-    # VALIDAR CANTIDAD Y ORDEN
+    # VALIDACIÓN DE CANTIDAD
     # ========================================================
 
     if cantidad not in CANTIDADES:
+
         cantidad = "varios"
 
+
+    # ========================================================
+    # VALIDACIÓN DE ORDEN
+    # ========================================================
+
     if orden not in ORDENES:
+
         orden = "ninguno"
 
+
     # ========================================================
-    # FECHAS
+    # PERÍODO DESDE LA PREGUNTA
     # ========================================================
 
-    if "fecha_desde" in permitidos:
+    if (
+        "fecha_desde"
+        in permitidos
+    ):
 
         if (
-            not filtros.get("fecha_desde")
-            and not filtros.get("fecha_hasta")
+            not filtros.get(
+                "fecha_desde"
+            )
+            and not filtros.get(
+                "fecha_hasta"
+            )
         ):
 
             desde, hasta = (
@@ -751,33 +882,41 @@ def normalizar_intencion(raw, pregunta=""):
 
             if desde:
 
-                filtros["fecha_desde"] = (
-                    desde
-                )
+                filtros[
+                    "fecha_desde"
+                ] = desde
 
-                filtros["fecha_hasta"] = (
-                    hasta
-                )
+                filtros[
+                    "fecha_hasta"
+                ] = hasta
+
 
     # ========================================================
-    # DETALLE = UNO
+    # DETALLE SIEMPRE UNO
     # ========================================================
 
     if operacion == "detalle":
+
         cantidad = "uno"
 
+
     # ========================================================
-    # RESULTADO
+    # SALIDA NORMALIZADA
     # ========================================================
 
     return {
-        "tema": tema,
-        "operacion": operacion,
-        "filtros": filtros,
-        "cantidad": cantidad,
-        "orden": orden,
+        "tema":
+            tema,
+
+        "operacion":
+            operacion,
+
+        "filtros":
+            filtros,
+
+        "cantidad":
+            cantidad,
+
+        "orden":
+            orden,
     }
-
-
-
-
