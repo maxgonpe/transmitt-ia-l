@@ -30,6 +30,10 @@ from .services.sugerencias_patron import (
     sugerir_patron,
 )
 
+from .services.vocabulario_semantico import (
+    guardar_equivalencias,
+    buscar_equivalencia,
+)
 
 # ============================================================
 # CONSULTA NORMAL
@@ -1381,6 +1385,196 @@ def cambiar_estado_regla(
                     "La regla no existe.",
             },
             status=404,
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )  
+
+@staff_member_required
+@require_http_methods(["POST"])
+def vocabulario_test_json(request):
+
+    modelo = (
+        request.POST.get("modelo")
+        or ""
+    ).strip()
+
+    campo = (
+        request.POST.get("campo")
+        or ""
+    ).strip()
+
+    valor_canonico = (
+        request.POST.get(
+            "valor_canonico"
+        )
+        or ""
+    ).strip()
+
+    aliases_texto = (
+        request.POST.get("aliases")
+        or ""
+    ).strip()
+
+    modo = (
+        request.POST.get("modo")
+        or "probar"
+    ).strip().lower()
+
+
+    if not modelo:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error":
+                    "Debes indicar el modelo.",
+            },
+            status=400,
+        )
+
+
+    if not campo:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error":
+                    "Debes indicar el campo.",
+            },
+            status=400,
+        )
+
+
+    if not valor_canonico:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error":
+                    "Debes indicar el valor canónico.",
+            },
+            status=400,
+        )
+
+
+    aliases = [
+        linea.strip()
+        for linea in aliases_texto.splitlines()
+        if linea.strip()
+    ]
+
+
+    if not aliases:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error":
+                    "Debes ingresar al menos un alias.",
+            },
+            status=400,
+        )
+
+
+    # ========================================================
+    # PROBAR
+    # ========================================================
+
+    if modo == "probar":
+
+        return JsonResponse(
+            {
+                "ok": True,
+
+                "guardado":
+                    False,
+
+                "modelo":
+                    modelo,
+
+                "campo":
+                    campo,
+
+                "valor_canonico":
+                    valor_canonico,
+
+                "aliases":
+                    aliases,
+
+                "mensaje":
+                    (
+                        "Equivalencia preparada correctamente. "
+                        "Todavía no se ha guardado nada."
+                    ),
+            },
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+
+    # ========================================================
+    # GUARDAR
+    # ========================================================
+
+    if modo != "guardar":
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error":
+                    "Modo no reconocido.",
+            },
+            status=400,
+        )
+
+
+    try:
+
+        resultados = (
+            guardar_equivalencias(
+                modelo=modelo,
+                campo=campo,
+                valor_canonico=valor_canonico,
+                aliases=aliases,
+            )
+        )
+
+        return JsonResponse(
+            {
+                "ok": True,
+
+                "guardado":
+                    True,
+
+                "total":
+                    len(resultados),
+
+                "equivalencias":
+                    resultados,
+
+                "mensaje":
+                    (
+                        f"{len(resultados)} "
+                        "equivalencia(s) guardada(s) "
+                        "correctamente."
+                    ),
+            },
+            json_dumps_params={
+                "ensure_ascii": False
+            },
+        )
+
+    except Exception as exc:
+
+        return JsonResponse(
+            {
+                "ok": False,
+                "error":
+                    str(exc),
+            },
+            status=400,
             json_dumps_params={
                 "ensure_ascii": False
             },

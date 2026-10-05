@@ -10,20 +10,23 @@ from ia_local.services.esquema_semantico import (
     generar_esquema_semantico,
 )
 
-
 from ia_local.services.relaciones_semanticas import (
     resolver_relacion,
-    ErrorRelacionSemantica,
 )
 
 from ia_local.services.normalizador_tipos import (
     normalizar_valor_campo,
-    ErrorNormalizacionTipo,
 )
 
 from ia_local.services.normalizador_dominio import (
     normalizar_valor_dominio,
 )
+
+from ia_local.services.vocabulario_semantico import (
+    buscar_equivalencia,
+    buscar_equivalencia_global,
+)
+
 
 class ErrorORMGenerico(ValueError):
     pass
@@ -34,23 +37,29 @@ def _obtener_info_campo(
     campo,
 ):
     """
-    Busca la información semántica de un campo.
+    Obtiene información semántica del campo.
     """
 
     esquema = generar_esquema_semantico(
         modelo_label
     )
 
-    info = esquema.get(
-        "campos",
-        {}
-    ).get(
-        campo
+    info = (
+        esquema
+        .get(
+            "campos",
+            {},
+        )
+        .get(
+            campo
+        )
     )
 
     if not info:
+
         raise ErrorORMGenerico(
-            f"No se encontró información del campo: {campo}"
+            f"No se encontró información "
+            f"del campo: {campo}"
         )
 
     return info
@@ -63,11 +72,26 @@ def _construir_filtros_orm(
     """
     Construye filtros ORM seguros.
 
-    Soporta:
+    Orden de resolución:
 
-    - campos directos
-    - operadores autorizados
-    - relaciones semánticas configuradas
+    1. vocabulario persistente
+    2. normalizador de dominio
+    3. normalizador de tipos
+    4. ORM
+
+    También puede corregir el campo si existe
+    una equivalencia global inequívoca.
+
+    Ejemplo:
+
+        company=BMS
+
+    puede convertirse en:
+
+        discipline=Other
+
+    si BMS está definido únicamente como alias
+    de discipline dentro del modelo.
     """
 
     filtros_orm = {}
@@ -81,7 +105,7 @@ def _construir_filtros_orm(
             1,
         )
 
-        campo = partes[0]
+        campo_original = partes[0]
 
         operador = (
             partes[1]
@@ -89,19 +113,81 @@ def _construir_filtros_orm(
             else None
         )
 
+        campo = campo_original
+
+        valor_actual = valor
+
+        # ====================================================
+        # VOCABULARIO DEL MISMO CAMPO
+        # ====================================================
+
+        equivalencia = (
+            buscar_equivalencia(
+                modelo_label,
+                campo,
+                valor_actual,
+            )
+        )
+
+        if equivalencia is not None:
+
+            valor_actual = equivalencia
+
+        else:
+
+            # ================================================
+            # VOCABULARIO GLOBAL
+            #
+            # Permite corregir también un campo mal elegido
+            # por Qwen.
+            # ================================================
+
+            equivalencia_global = (
+                buscar_equivalencia_global(
+                    modelo_label,
+                    valor_actual,
+                )
+            )
+
+            if equivalencia_global:
+
+                campo = (
+                    equivalencia_global[
+                        "campo"
+                    ]
+                )
+
+                valor_actual = (
+                    equivalencia_global[
+                        "valor"
+                    ]
+                )
+
+                # Si cambiamos el campo,
+                # no conservamos operadores provenientes
+                # del campo anterior.
+                operador = None
+
+
+        # ====================================================
+        # VALIDAR CAMPO FINAL
+        # ====================================================
+
         info = _obtener_info_campo(
             modelo_label,
             campo,
         )
 
-        # -----------------------------------------------------
-        # RELACIÓN
-        # -----------------------------------------------------
 
-        if info.get("tipo") == "relacion":
+        # ====================================================
+        # RELACIONES
+        # ====================================================
 
-            # Por ahora no aceptamos operadores humanos
-            # adicionales sobre relaciones.
+        if (
+            info.get("tipo")
+            == "relacion"
+        ):
+
             if operador:
 
                 raise ErrorORMGenerico(
@@ -113,7 +199,7 @@ def _construir_filtros_orm(
             relacion = resolver_relacion(
                 modelo_label,
                 campo,
-                valor,
+                valor_actual,
             )
 
             filtros_orm.update(
@@ -124,18 +210,19 @@ def _construir_filtros_orm(
 
             continue
 
-        # -----------------------------------------------------
-        # CAMPO DIRECTO
-        # -----------------------------------------------------
 
-        # Primero aplica equivalencias propias del dominio/proyecto.
-        valor_dominio = normalizar_valor_dominio(
-            modelo_label,
-            campo,
-            valor,
+        # ====================================================
+        # CAMPO DIRECTO
+        # ====================================================
+
+        valor_dominio = (
+            normalizar_valor_dominio(
+                modelo_label,
+                campo,
+                valor_actual,
+            )
         )
 
-        # Después normaliza el tipo semántico/Django del campo.
         valor_normalizado = (
             normalizar_valor_campo(
                 modelo_label,
@@ -145,8 +232,21 @@ def _construir_filtros_orm(
             )
         )
 
+
+        # ====================================================
+        # RUTA ORM FINAL
+        # ====================================================
+
+        ruta_final = campo
+
+        if operador:
+
+            ruta_final = (
+                f"{campo}__{operador}"
+            )
+
         filtros_orm[
-            ruta_resuelta
+            ruta_final
         ] = valor_normalizado
 
     return filtros_orm
@@ -156,35 +256,53 @@ def construir_queryset(
     tema,
     filtros,
 ):
-    resultado_filtros = resolver_filtros(
-        tema,
-        filtros,
+    """
+    Construye queryset autorizado.
+    """
+
+    resultado_filtros = (
+        resolver_filtros(
+            tema,
+            filtros,
+        )
     )
 
-    modelo_label = resultado_filtros[
-        "modelo"
-    ]
-
-    filtros_resueltos = resultado_filtros[
-        "filtros_resueltos"
-    ]
-
-    filtros_orm = _construir_filtros_orm(
-        modelo_label,
-        filtros_resueltos,
+    modelo_label = (
+        resultado_filtros[
+            "modelo"
+        ]
     )
 
-    modelo = obtener_modelo_permitido(
-        modelo_label
+    filtros_resueltos = (
+        resultado_filtros[
+            "filtros_resueltos"
+        ]
     )
 
-    queryset = modelo.objects.filter(
-        **filtros_orm
+    filtros_orm = (
+        _construir_filtros_orm(
+            modelo_label,
+            filtros_resueltos,
+        )
+    )
+
+    modelo = (
+        obtener_modelo_permitido(
+            modelo_label
+        )
+    )
+
+    queryset = (
+        modelo.objects.filter(
+            **filtros_orm
+        )
     )
 
     return {
         "tema":
-            resultado_filtros["tema"],
+            resultado_filtros[
+                "tema"
+            ],
 
         "modelo":
             modelo_label,
@@ -208,8 +326,7 @@ def ejecutar_consulta(
     limite=20,
 ):
     """
-    Ejecuta la consulta y devuelve información
-    controlada para diagnóstico.
+    Ejecuta consulta controlada.
     """
 
     resultado = construir_queryset(
@@ -229,10 +346,14 @@ def ejecutar_consulta(
 
     return {
         "tema":
-            resultado["tema"],
+            resultado[
+                "tema"
+            ],
 
         "modelo":
-            resultado["modelo"],
+            resultado[
+                "modelo"
+            ],
 
         "filtros_originales":
             resultado[

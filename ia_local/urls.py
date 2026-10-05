@@ -14,4 +14,5 @@ urlpatterns = [
     path("test-guardar-patron/", views.guardar_patron_test_json, name="guardar_patron_test_json",),
     path("reglas/", views.reglas_semanticas, name="reglas_semanticas",),
     path("reglas/<int:pk>/estado/", views.cambiar_estado_regla, name="cambiar_estado_regla",),
+    path("test-vocabulario/", views.vocabulario_test_json, name="vocabulario_test_json",),
 ]

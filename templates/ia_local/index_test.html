@@ -62,6 +62,10 @@
             border: 1px solid #baa56b;
         }
 
+        .panel-vocab {
+            border: 2px solid #557a55;
+        }
+
         textarea {
             width: 100%;
             min-height: 110px;
@@ -71,6 +75,16 @@
             border-radius: 5px;
             font-size: 15px;
             font-family: Consolas, Monaco, monospace;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 12px;
+            border: 1px solid #bbb;
+            border-radius: 5px;
+            font-size: 15px;
         }
 
         #pregunta {
@@ -130,9 +144,7 @@
             gap: 20px;
         }
 
-        @media (
-            max-width: 900px
-        ) {
+        @media (max-width: 900px) {
 
             .grid {
                 grid-template-columns: 1fr;
@@ -230,6 +242,10 @@
 
         .help-yellow {
             border-left-color: #8a6a20;
+        }
+
+        .help-green {
+            border-left-color: #28743c;
         }
 
         .result-good {
@@ -437,9 +453,7 @@
          CORRECCIÓN
          ===================================================== -->
 
-    <div
-        class="panel panel-correction"
-    >
+    <div class="panel panel-correction">
 
         <div class="step-title">
             <span class="step-number">3</span>
@@ -458,15 +472,11 @@
 
             si interpretó:
 
-            <code>
-                company = macanica
-            </code>
+            <code>company = macanica</code>
 
             pero el significado correcto es:
 
-            <code>
-                discipline = mechanical
-            </code>
+            <code>discipline = mechanical</code>
 
             cambia únicamente el JSON de abajo.
 
@@ -531,21 +541,21 @@
 
     <!-- =====================================================
          PASO 4
-         APRENDIZAJE
+         REGLA EXACTA
          ===================================================== -->
 
     <div class="panel">
 
         <div class="step-title">
             <span class="step-number">4</span>
-            Guardar aprendizaje
+            Guardar aprendizaje como regla exacta
         </div>
 
         <div class="help help-blue">
 
             Usa <strong>Regla exacta</strong>
-            cuando quieres enseñar el significado correcto
-            de la pregunta concreta que acabas de probar.
+            cuando quieras enseñar el significado correcto
+            de una pregunta concreta.
 
             <br><br>
 
@@ -586,9 +596,7 @@
          PATRÓN
          ===================================================== -->
 
-    <div
-        class="panel panel-pattern"
-    >
+    <div class="panel panel-pattern">
 
         <div class="step-title">
             <span class="step-number">5</span>
@@ -609,8 +617,6 @@
 
             Ejemplo correcto:
 
-            <br>
-
             <code>
                 cuantas rdi de {DISCIPLINA} hay
             </code>
@@ -619,19 +625,9 @@
 
             con una intención como:
 
-            <br>
-
             <code>
                 "discipline": "{DISCIPLINA}"
             </code>
-
-            <br><br>
-
-            Si solamente quieres corregir
-            <code>macanica → mechanical</code>
-            para esta pregunta concreta,
-            utiliza la sección anterior:
-            <strong>Guardar como regla exacta</strong>.
 
         </div>
 
@@ -675,6 +671,134 @@
     </div>
 
 
+    <!-- =====================================================
+         PASO 6
+         VOCABULARIO / SINÓNIMOS
+         ===================================================== -->
+
+    <div class="panel panel-vocab">
+
+        <div class="step-title">
+            <span class="step-number">6</span>
+            Vocabulario / sinónimos
+        </div>
+
+        <div class="help help-green">
+
+            Esta sección sirve para enseñar términos equivalentes
+            propios del proyecto.
+
+            <br><br>
+
+            Ejemplo:
+
+            <code>BMS</code>
+
+            significa:
+
+            <code>discipline = Other</code>
+
+            <br><br>
+
+            Esto <strong>NO crea una regla para una pregunta concreta</strong>.
+
+            <br><br>
+
+            Permite que preguntas como:
+
+            <code>cuantas rdi de BMS hay</code>
+
+            puedan convertirse internamente en:
+
+            <code>discipline = Other</code>.
+
+        </div>
+
+
+        <label for="vocabModelo">
+            <strong>Modelo</strong>
+        </label>
+
+        <input
+            id="vocabModelo"
+            type="text"
+            value="rdi.RDIRecord"
+        >
+
+
+        <label for="vocabCampo">
+            <strong>Campo</strong>
+        </label>
+
+        <input
+            id="vocabCampo"
+            type="text"
+            value="discipline"
+        >
+
+
+        <label for="vocabCanonico">
+            <strong>Valor real / canónico</strong>
+        </label>
+
+        <input
+            id="vocabCanonico"
+            type="text"
+            value="Other"
+        >
+
+
+        <label for="vocabAliases">
+            <strong>
+                Términos equivalentes
+                (uno por línea)
+            </strong>
+        </label>
+
+        <textarea
+            id="vocabAliases"
+            placeholder="BMS
+b.m.s.
+building management system
+sistema bms"
+        ></textarea>
+
+
+        <div class="toolbar">
+
+            <button
+                id="btnProbarVocabulario"
+                type="button"
+                class="primary"
+                onclick="probarVocabulario()"
+            >
+                Probar equivalencias
+            </button>
+
+
+            <button
+                id="btnGuardarVocabulario"
+                type="button"
+                class="success"
+                onclick="guardarVocabulario()"
+                disabled
+            >
+                Guardar vocabulario
+            </button>
+
+        </div>
+
+
+        <div
+            id="resultadoVocabulario"
+            class="result-neutral"
+        >
+            Todavía no se ha probado vocabulario.
+        </div>
+
+    </div>
+
+
 </div>
 
 
@@ -690,6 +814,8 @@ ESTADO LOCAL
 let ultimaIntencionNormalizada = null;
 
 let correccionProbada = false;
+
+let vocabularioProbado = false;
 
 
 /*
@@ -776,6 +902,41 @@ function formatoJSON(valor) {
         return String(valor);
 
     }
+
+}
+
+
+/*
+=========================================================
+ESCAPAR HTML
+=========================================================
+*/
+
+function escapeHtml(texto) {
+
+    return String(
+        texto
+    )
+    .replaceAll(
+        "&",
+        "&amp;"
+    )
+    .replaceAll(
+        "<",
+        "&lt;"
+    )
+    .replaceAll(
+        ">",
+        "&gt;"
+    )
+    .replaceAll(
+        '"',
+        "&quot;"
+    )
+    .replaceAll(
+        "'",
+        "&#039;"
+    );
 
 }
 
@@ -925,7 +1086,9 @@ async function consultarIA() {
     mostrarOrigen(null);
 
     document
-        .getElementById("raw")
+        .getElementById(
+            "raw"
+        )
         .textContent = "";
 
     document
@@ -997,22 +1160,10 @@ async function consultarIA() {
         }
 
 
-        /*
-        -----------------------------------------------
-        ORIGEN
-        -----------------------------------------------
-        */
-
         mostrarOrigen(
             data.origen_interpretacion
         );
 
-
-        /*
-        -----------------------------------------------
-        ORIGINAL
-        -----------------------------------------------
-        */
 
         document
             .getElementById(
@@ -1024,14 +1175,9 @@ async function consultarIA() {
             );
 
 
-        /*
-        -----------------------------------------------
-        NORMALIZADO ORIGINAL
-        -----------------------------------------------
-        */
-
         ultimaIntencionNormalizada =
             data.normalizado;
+
 
         document
             .getElementById(
@@ -1042,12 +1188,6 @@ async function consultarIA() {
                 data.normalizado
             );
 
-
-        /*
-        -----------------------------------------------
-        COPIAR AUTOMÁTICAMENTE A CORRECCIÓN
-        -----------------------------------------------
-        */
 
         document
             .getElementById(
@@ -1073,12 +1213,6 @@ async function consultarIA() {
             .disabled = false;
 
 
-        /*
-        -----------------------------------------------
-        ORM ORIGINAL
-        -----------------------------------------------
-        */
-
         document
             .getElementById(
                 "resultado"
@@ -1089,12 +1223,6 @@ async function consultarIA() {
             );
 
 
-        /*
-        -----------------------------------------------
-        RESPUESTA ORIGINAL
-        -----------------------------------------------
-        */
-
         document
             .getElementById(
                 "respuesta"
@@ -1102,12 +1230,6 @@ async function consultarIA() {
             .textContent =
             data.respuesta || "";
 
-
-        /*
-        -----------------------------------------------
-        SUGERENCIA PATRÓN
-        -----------------------------------------------
-        */
 
         if (
             data.sugerencia_patron
@@ -1215,8 +1337,7 @@ function copiarNormalizadoACorreccion() {
 
 /*
 =========================================================
-SI EL USUARIO EDITA EL JSON,
-LA PRUEBA ANTERIOR YA NO ES VÁLIDA
+INVALIDAR PRUEBA SI EDITA JSON
 =========================================================
 */
 
@@ -1752,35 +1873,432 @@ async function guardarPatron() {
 
 /*
 =========================================================
-ESCAPAR HTML
+VOCABULARIO
 =========================================================
 */
 
-function escapeHtml(texto) {
+function leerFormularioVocabulario() {
 
-    return String(
-        texto
-    )
-    .replaceAll(
-        "&",
-        "&amp;"
-    )
-    .replaceAll(
-        "<",
-        "&lt;"
-    )
-    .replaceAll(
-        ">",
-        "&gt;"
-    )
-    .replaceAll(
-        '"',
-        "&quot;"
-    )
-    .replaceAll(
-        "'",
-        "&#039;"
-    );
+    return {
+        modelo:
+            document
+                .getElementById(
+                    "vocabModelo"
+                )
+                .value
+                .trim(),
+
+        campo:
+            document
+                .getElementById(
+                    "vocabCampo"
+                )
+                .value
+                .trim(),
+
+        valor_canonico:
+            document
+                .getElementById(
+                    "vocabCanonico"
+                )
+                .value
+                .trim(),
+
+        aliases:
+            document
+                .getElementById(
+                    "vocabAliases"
+                )
+                .value
+                .trim()
+    };
+
+}
+
+
+/*
+=========================================================
+INVALIDAR VOCABULARIO SI SE EDITA
+=========================================================
+*/
+
+[
+    "vocabModelo",
+    "vocabCampo",
+    "vocabCanonico",
+    "vocabAliases"
+
+].forEach(
+    function (id) {
+
+        document
+            .getElementById(id)
+            .addEventListener(
+                "input",
+                function () {
+
+                    vocabularioProbado = false;
+
+                    document
+                        .getElementById(
+                            "btnGuardarVocabulario"
+                        )
+                        .disabled = true;
+
+                }
+            );
+
+    }
+);
+
+
+/*
+=========================================================
+PROBAR VOCABULARIO
+=========================================================
+*/
+
+async function probarVocabulario() {
+
+    const datos =
+        leerFormularioVocabulario();
+
+    const status =
+        document.getElementById(
+            "status"
+        );
+
+    const boton =
+        document.getElementById(
+            "btnProbarVocabulario"
+        );
+
+
+    vocabularioProbado = false;
+
+
+    document
+        .getElementById(
+            "btnGuardarVocabulario"
+        )
+        .disabled = true;
+
+
+    boton.disabled = true;
+
+
+    status.className =
+        "status loading";
+
+
+    status.textContent =
+        "Probando equivalencias...";
+
+
+    try {
+
+        const formData =
+            new FormData();
+
+
+        formData.append(
+            "modelo",
+            datos.modelo
+        );
+
+
+        formData.append(
+            "campo",
+            datos.campo
+        );
+
+
+        formData.append(
+            "valor_canonico",
+            datos.valor_canonico
+        );
+
+
+        formData.append(
+            "aliases",
+            datos.aliases
+        );
+
+
+        formData.append(
+            "modo",
+            "probar"
+        );
+
+
+        const response =
+            await fetch(
+                "/ia/test-vocabulario/",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "X-CSRFToken":
+                            getCookie(
+                                "csrftoken"
+                            )
+                    },
+
+                    body:
+                        formData
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (
+            !response.ok ||
+            !data.ok
+        ) {
+
+            throw new Error(
+                data.error ||
+                "No fue posible probar el vocabulario."
+            );
+
+        }
+
+
+        vocabularioProbado =
+            true;
+
+
+        document
+            .getElementById(
+                "btnGuardarVocabulario"
+            )
+            .disabled = false;
+
+
+        document
+            .getElementById(
+                "resultadoVocabulario"
+            )
+            .innerHTML =
+            "<strong>MODELO:</strong> "
+            + escapeHtml(
+                data.modelo
+            )
+            + "<br>"
+            + "<strong>CAMPO:</strong> "
+            + escapeHtml(
+                data.campo
+            )
+            + "<br>"
+            + "<strong>VALOR CANÓNICO:</strong> "
+            + escapeHtml(
+                data.valor_canonico
+            )
+            + "<br><br>"
+            + "<strong>EQUIVALENCIAS:</strong><br>"
+            + data.aliases
+                .map(
+                    alias =>
+                        escapeHtml(alias)
+                        + " → "
+                        + escapeHtml(
+                            data.valor_canonico
+                        )
+                )
+                .join("<br>");
+
+
+        status.className =
+            "status ok";
+
+
+        status.textContent =
+            data.mensaje;
+
+    }
+    catch (error) {
+
+        status.className =
+            "status error";
+
+
+        status.textContent =
+            error.message;
+
+    }
+    finally {
+
+        boton.disabled =
+            false;
+
+    }
+
+}
+
+
+/*
+=========================================================
+GUARDAR VOCABULARIO
+=========================================================
+*/
+
+async function guardarVocabulario() {
+
+    if (
+        !vocabularioProbado
+    ) {
+
+        const status =
+            document.getElementById(
+                "status"
+            );
+
+        status.className =
+            "status error";
+
+        status.textContent =
+            "Primero debes probar las equivalencias.";
+
+        return;
+
+    }
+
+
+    const datos =
+        leerFormularioVocabulario();
+
+
+    const status =
+        document.getElementById(
+            "status"
+        );
+
+
+    const boton =
+        document.getElementById(
+            "btnGuardarVocabulario"
+        );
+
+
+    boton.disabled = true;
+
+
+    status.className =
+        "status loading";
+
+
+    status.textContent =
+        "Guardando vocabulario...";
+
+
+    try {
+
+        const formData =
+            new FormData();
+
+
+        formData.append(
+            "modelo",
+            datos.modelo
+        );
+
+
+        formData.append(
+            "campo",
+            datos.campo
+        );
+
+
+        formData.append(
+            "valor_canonico",
+            datos.valor_canonico
+        );
+
+
+        formData.append(
+            "aliases",
+            datos.aliases
+        );
+
+
+        formData.append(
+            "modo",
+            "guardar"
+        );
+
+
+        const response =
+            await fetch(
+                "/ia/test-vocabulario/",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "X-CSRFToken":
+                            getCookie(
+                                "csrftoken"
+                            )
+                    },
+
+                    body:
+                        formData
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (
+            !response.ok ||
+            !data.ok
+        ) {
+
+            throw new Error(
+                data.error ||
+                "No fue posible guardar el vocabulario."
+            );
+
+        }
+
+
+        status.className =
+            "status ok";
+
+
+        status.textContent =
+            data.mensaje;
+
+
+        document
+            .getElementById(
+                "resultadoVocabulario"
+            )
+            .innerHTML +=
+            "<br><br>"
+            + "<strong>"
+            + "VOCABULARIO GUARDADO CORRECTAMENTE."
+            + "</strong>";
+
+    }
+    catch (error) {
+
+        status.className =
+            "status error";
+
+
+        status.textContent =
+            error.message;
+
+
+        boton.disabled =
+            false;
+
+    }
 
 }
 
@@ -1799,13 +2317,19 @@ function limpiar() {
     correccionProbada =
         false;
 
+    vocabularioProbado =
+        false;
+
+
     document
         .getElementById(
             "pregunta"
         )
         .value = "";
 
+
     mostrarOrigen(null);
+
 
     document
         .getElementById(
@@ -1813,11 +2337,13 @@ function limpiar() {
         )
         .textContent = "";
 
+
     document
         .getElementById(
             "normalizado"
         )
         .textContent = "";
+
 
     document
         .getElementById(
@@ -1825,17 +2351,20 @@ function limpiar() {
         )
         .textContent = "";
 
+
     document
         .getElementById(
             "respuesta"
         )
         .textContent = "";
 
+
     document
         .getElementById(
             "intencionCorregida"
         )
         .value = "";
+
 
     document
         .getElementById(
@@ -1844,11 +2373,13 @@ function limpiar() {
         .textContent =
         "Todavía no se ha probado ninguna corrección.";
 
+
     document
         .getElementById(
             "patronSemantico"
         )
         .value = "";
+
 
     document
         .getElementById(
@@ -1856,11 +2387,13 @@ function limpiar() {
         )
         .value = "";
 
+
     document
         .getElementById(
             "btnGuardarRegla"
         )
         .disabled = true;
+
 
     document
         .getElementById(
@@ -1868,11 +2401,28 @@ function limpiar() {
         )
         .disabled = true;
 
+
     document
         .getElementById(
             "btnCopiarNormalizado"
         )
         .disabled = true;
+
+
+    document
+        .getElementById(
+            "btnGuardarVocabulario"
+        )
+        .disabled = true;
+
+
+    document
+        .getElementById(
+            "resultadoVocabulario"
+        )
+        .textContent =
+        "Todavía no se ha probado vocabulario.";
+
 
     document
         .getElementById(
@@ -1991,9 +2541,43 @@ async function copiarTodo() {
             )
             .value,
 
+        "",
+
+        "VOCABULARIO",
+        "==============================",
+
+        "Modelo:",
+        document
+            .getElementById(
+                "vocabModelo"
+            )
+            .value,
+
+        "Campo:",
+        document
+            .getElementById(
+                "vocabCampo"
+            )
+            .value,
+
+        "Valor canónico:",
+        document
+            .getElementById(
+                "vocabCanonico"
+            )
+            .value,
+
+        "Alias:",
+        document
+            .getElementById(
+                "vocabAliases"
+            )
+            .value
+
     ].join(
         "\n"
     );
+
 
     try {
 
@@ -2001,13 +2585,16 @@ async function copiarTodo() {
             contenido
         );
 
+
         const status =
             document.getElementById(
                 "status"
             );
 
+
         status.className =
             "status ok";
+
 
         status.textContent =
             "Diagnóstico copiado.";
@@ -2020,8 +2607,10 @@ async function copiarTodo() {
                 "status"
             );
 
+
         status.className =
             "status error";
+
 
         status.textContent =
             "No fue posible copiar el diagnóstico.";
