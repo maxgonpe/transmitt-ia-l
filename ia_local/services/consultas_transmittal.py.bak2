@@ -24,15 +24,8 @@ MESES = {
 }
 
 
-# ============================================================
-# FILTROS DOCUMENTALES INTERNOS
-# ============================================================
-#
-# IMPORTANTE:
-# Los términos más específicos deben ir primero.
-#
-# ============================================================
-
+# Orden importante:
+# primero expresiones más específicas.
 FILTROS_DOCUMENTALES = (
     (
         (
@@ -88,10 +81,6 @@ FILTROS_DOCUMENTALES = (
 )
 
 
-# ============================================================
-# NORMALIZACIÓN
-# ============================================================
-
 def _normalizar_texto(
     texto,
 ):
@@ -122,7 +111,7 @@ def _normalizar_texto(
 
 
 # ============================================================
-# CONCEPTO GENERAL DEL TRANSMITTAL
+# CONCEPTO DEL TRANSMITTAL
 # ============================================================
 
 def _detectar_concepto(
@@ -177,7 +166,7 @@ def _detectar_texto_item(
 
 
 # ============================================================
-# FECHA EXACTA
+# FECHAS
 # ============================================================
 
 def _detectar_fecha(
@@ -207,10 +196,6 @@ def _detectar_fecha(
         f"-{int(match.group(3)):04d}"
     )
 
-
-# ============================================================
-# MES / AÑO
-# ============================================================
 
 def _detectar_mes_anio(
     pregunta,
@@ -270,10 +255,14 @@ def _detectar_estado(
     ):
         return "Para revisión"
 
-    if "para informacion" in texto:
+    if (
+        "para informacion" in texto
+    ):
         return "Para información"
 
-    if "para aprobacion" in texto:
+    if (
+        "para aprobacion" in texto
+    ):
         return "Para aprobación"
 
     if "aprobado" in texto:
@@ -286,7 +275,7 @@ def _detectar_estado(
 
 
 # ============================================================
-# IDENTIFICADOR DEL TRANSMITTAL
+# IDENTIFICADOR TRANSMITTAL
 # ============================================================
 
 def _extraer_identificador_transmittal(
@@ -296,10 +285,7 @@ def _extraer_identificador_transmittal(
         pregunta
     )
 
-    # --------------------------------------------------------
     # Código completo.
-    # --------------------------------------------------------
-
     match_codigo = re.search(
         r"\b"
         r"[a-z0-9]+"
@@ -310,9 +296,7 @@ def _extraer_identificador_transmittal(
 
     if match_codigo:
 
-        valor = match_codigo.group(
-            0
-        )
+        valor = match_codigo.group(0)
 
         if (
             "ttal" in valor
@@ -320,13 +304,7 @@ def _extraer_identificador_transmittal(
         ):
             return valor
 
-    # --------------------------------------------------------
-    # Número humano:
-    #
-    # transmittal 703
-    # transmital nro 703
-    # --------------------------------------------------------
-
+    # Número humano.
     match = re.search(
         r"\b"
         r"(?:transmittal|transmital)"
@@ -343,9 +321,7 @@ def _extraer_identificador_transmittal(
     if not match:
         return None
 
-    return match.group(
-        1
-    )
+    return match.group(1)
 
 
 # ============================================================
@@ -359,13 +335,14 @@ def _extraer_archivo_consultado(
         pregunta or ""
     )
 
+    # Preferencia:
+    # nombre entre comillas.
     match = re.search(
         r"""["']([^"']+\.[A-Za-z0-9]{2,5})["']""",
         pregunta,
     )
 
     if match:
-
         return (
             match
             .group(1)
@@ -376,19 +353,12 @@ def _extraer_archivo_consultado(
 
 
 # ============================================================
-# DETECTOR DE LA FAMILIA TRANSMITTAL
+# DETECTOR DE FAMILIA TRANSMITTAL
 # ============================================================
 
 def detectar_consulta_transmittal(
     pregunta,
 ):
-    """
-    Decide si una pregunta debe resolverse mediante
-    los items internos de los transmittals.
-
-    Debe ejecutarse ANTES que Qwen.
-    """
-
     texto = _normalizar_texto(
         pregunta
     )
@@ -411,14 +381,6 @@ def detectar_consulta_transmittal(
         )
     )
 
-    fecha = _detectar_fecha(
-        pregunta
-    )
-
-    mes, anio = _detectar_mes_anio(
-        pregunta
-    )
-
     habla_transmittal = any(
         termino in texto
         for termino in (
@@ -432,33 +394,16 @@ def detectar_consulta_transmittal(
         )
     )
 
-    # --------------------------------------------------------
-    # Distinguimos especialmente "archivo", porque en este
-    # proyecto suele representar un ITEM interno del
-    # transmittal.
-    # --------------------------------------------------------
-
-    habla_archivos = any(
+    habla_items = any(
         termino in texto
         for termino in (
             "archivo",
             "archivos",
             "adjunto",
             "adjuntos",
-        )
-    )
-
-    habla_documentos = any(
-        termino in texto
-        for termino in (
             "documento",
             "documentos",
         )
-    )
-
-    habla_items = (
-        habla_archivos
-        or habla_documentos
     )
 
     pide_operacion = any(
@@ -471,22 +416,11 @@ def detectar_consulta_transmittal(
             "listar",
             "dame",
             "muestra",
-            "mostrar",
             "cuales",
             "que archivos",
             "que documentos",
         )
     )
-
-    tiene_filtro_temporal = (
-        fecha is not None
-        or mes is not None
-        or anio is not None
-    )
-
-    # ========================================================
-    # 1. BÚSQUEDA INVERSA DE ARCHIVO
-    # ========================================================
 
     busca_origen = (
         archivo is not None
@@ -506,29 +440,11 @@ def detectar_consulta_transmittal(
     if busca_origen:
         return True
 
-    # ========================================================
-    # 2. TRANSMITTAL CONCRETO + ITEMS
-    # ========================================================
-
-    if (
-        identificador
-        and habla_items
-    ):
+    if identificador and habla_items:
         return True
 
-    # ========================================================
-    # 3. MENCIÓN EXPLÍCITA DE TRANSMITTAL + ITEMS
-    # ========================================================
-
-    if (
-        habla_transmittal
-        and habla_items
-    ):
+    if habla_transmittal and habla_items:
         return True
-
-    # ========================================================
-    # 4. CONCEPTO DAILY REPORT
-    # ========================================================
 
     if (
         concepto
@@ -539,47 +455,9 @@ def detectar_consulta_transmittal(
     ):
         return True
 
-    # ========================================================
-    # 5. NUEVA REGLA GENERAL
-    #
-    # archivo(s) + especialidad conocida + operación
-    #
-    # Ejemplos:
-    #
-    # lista los archivos clima
-    # cuantos archivos PCI existen
-    # dame los archivos BMS
-    #
-    # Estos representan items internos, no Document.doc_type.
-    # ========================================================
-
-    if (
-        texto_item
-        and habla_archivos
-        and pide_operacion
-    ):
-        return True
-
-    # ========================================================
-    # 6. ESPECIALIDAD + ARCHIVOS + FECHA/MES/AÑO
-    #
-    # Ejemplo exacto que antes caía a Qwen:
-    #
-    # lista los archivos clima del 09-09-2026
-    #
-    # ========================================================
-
-    if (
-        texto_item
-        and habla_archivos
-        and tiene_filtro_temporal
-    ):
-        return True
-
-    # ========================================================
-    # 7. FORMAS VERBALES DE PUBLICACIÓN / TRANSMISIÓN
-    # ========================================================
-
+    # Ejemplo:
+    # "cuántos archivos OOCC fueron informados
+    #  en septiembre?"
     if (
         texto_item
         and habla_items
@@ -588,18 +466,12 @@ def detectar_consulta_transmittal(
             for palabra in (
                 "informado",
                 "informados",
-                "informada",
-                "informadas",
                 "publicado",
                 "publicados",
-                "publicada",
-                "publicadas",
                 "adjunto",
                 "adjuntos",
                 "transmitido",
                 "transmitidos",
-                "transmitida",
-                "transmitidas",
             )
         )
     ):
