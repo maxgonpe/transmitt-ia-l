@@ -25,7 +25,7 @@ class ErrorMotorGenerico(ValueError):
 
 
 # ============================================================
-# NORMALIZAR PREGUNTA
+# NORMALIZACIÓN SIMPLE DE PREGUNTA
 # ============================================================
 
 def _normalizar_texto(
@@ -58,7 +58,7 @@ def _normalizar_texto(
 
 
 # ============================================================
-# CONTEO / LISTADO GENERAL
+# DETECCIÓN CONTEO / LISTADO
 # ============================================================
 
 def _pregunta_pide_conteo(
@@ -115,6 +115,14 @@ def _ajustar_operacion_por_pregunta(
     pregunta,
     intencion,
 ):
+    """
+    Corrige únicamente la operación general.
+
+    Si la pregunta pide cantidad + cuáles,
+    listar es suficiente porque el resultado
+    contiene total + registros.
+    """
+
     intencion = dict(
         intencion
     )
@@ -163,13 +171,28 @@ def _ajustar_operacion_por_pregunta(
 
 
 # ============================================================
-# MOTOR PRINCIPAL
+# MOTOR
 # ============================================================
 
 def ejecutar_pregunta(
     pregunta,
     limite=20,
 ):
+    """
+    Flujo general:
+
+        pregunta
+            |
+            +--> consulta documental interna de transmittal
+            |       -> parser determinista
+            |
+            +--> memoria / Qwen
+                    -> intención
+                    -> validación
+                    -> ORM
+                    -> PostgreSQL
+    """
+
     if not isinstance(
         pregunta,
         str,
@@ -182,7 +205,7 @@ def ejecutar_pregunta(
     pregunta = pregunta.strip()
 
     # ========================================================
-    # 0. FAMILIA TRANSMITTAL
+    # 0. FAMILIA ESPECIALIZADA: TRANSMITTALS
     # ========================================================
 
     if detectar_consulta_transmittal(
@@ -203,13 +226,6 @@ def ejecutar_pregunta(
             "contar"
             if accion == "contar"
             else "listar"
-        )
-
-        filtros_items = (
-            resultado_especial.get(
-                "filtros_items"
-            )
-            or {}
         )
 
         intencion = {
@@ -234,31 +250,6 @@ def ejecutar_pregunta(
                     "archivo":
                         resultado_especial.get(
                             "archivo_buscado"
-                        ),
-
-                    "texto_item":
-                        filtros_items.get(
-                            "texto_item"
-                        ),
-
-                    "fecha":
-                        filtros_items.get(
-                            "fecha"
-                        ),
-
-                    "mes":
-                        filtros_items.get(
-                            "mes"
-                        ),
-
-                    "anio":
-                        filtros_items.get(
-                            "anio"
-                        ),
-
-                    "estado":
-                        filtros_items.get(
-                            "estado"
                         ),
                 },
 
@@ -306,14 +297,6 @@ def ejecutar_pregunta(
                         resultado_especial.get(
                             "concepto"
                         ),
-
-                    "transmittal":
-                        resultado_especial.get(
-                            "identificador_transmittal"
-                        ),
-
-                    "filtros_items":
-                        filtros_items,
                 },
 
             "total":
@@ -370,7 +353,7 @@ def ejecutar_pregunta(
         )
 
     # ========================================================
-    # 2. CONTRATO
+    # 2. VALIDAR Y NORMALIZAR CONTRATO
     # ========================================================
 
     validar_intencion_con_catalogo(
@@ -383,6 +366,8 @@ def ejecutar_pregunta(
         )
     )
 
+    # Ajuste semántico general:
+    # "cuántas hay y cuáles son"
     intencion = (
         _ajustar_operacion_por_pregunta(
             pregunta,
@@ -411,7 +396,7 @@ def ejecutar_pregunta(
     ]
 
     # ========================================================
-    # 3. OPERACIONES
+    # 3. OPERACIONES AUTORIZADAS
     # ========================================================
 
     if operacion not in {
@@ -424,7 +409,7 @@ def ejecutar_pregunta(
         )
 
     # ========================================================
-    # 4. ORM
+    # 4. ORM DETERMINISTA
     # ========================================================
 
     resultado_orm = ejecutar_consulta(
@@ -434,7 +419,7 @@ def ejecutar_pregunta(
     )
 
     # ========================================================
-    # 5. RESPUESTA
+    # 5. RESPUESTA INTERNA
     # ========================================================
 
     return {

@@ -1,7 +1,5 @@
 import re
 
-from datetime import date
-
 from django.db.models import Q
 
 from documents.models import Document
@@ -23,7 +21,7 @@ EXTENSIONES_ARCHIVO = (
     "ppt",
     "pptx",
 
-    # CAD
+    # Planos / CAD
     "dwg",
     "dxf",
 
@@ -56,7 +54,7 @@ PATRON_EXTENSION = (
 
 
 # ============================================================
-# ESTADOS CONOCIDOS
+# ESTADOS CONOCIDOS EN FILAS DE TRANSMITTAL
 # ============================================================
 
 ESTADOS_ITEM = (
@@ -94,6 +92,11 @@ def _texto(valor):
 
 
 def _normalizar_espacios(texto):
+    """
+    Convierte saltos y espacios repetidos
+    en espacios simples.
+    """
+
     return re.sub(
         r"\s+",
         " ",
@@ -102,6 +105,10 @@ def _normalizar_espacios(texto):
 
 
 def _codigo_transmittal(documento):
+    """
+    Devuelve el mejor identificador disponible
+    para el Document contenedor.
+    """
 
     for campo in (
         "code",
@@ -123,12 +130,26 @@ def _codigo_transmittal(documento):
 
 
 # ============================================================
-# BLOQUES NUMERADOS
+# DETECCIÓN DE BLOQUES NUMERADOS
 # ============================================================
 
 def _extraer_bloques_numerados(
     content_extract,
 ):
+    """
+    Divide el texto usando filas que comienzan con:
+
+        1 ...
+        2 ...
+        3 ...
+
+    Cada bloque termina cuando comienza el siguiente
+    número de item.
+
+    Todavía no decide si el bloque representa
+    realmente un documento.
+    """
+
     texto = _texto(
         content_extract
     )
@@ -151,7 +172,6 @@ def _extraer_bloques_numerados(
     for indice, match in enumerate(
         matches
     ):
-
         inicio = match.start()
 
         if indice + 1 < len(matches):
@@ -160,6 +180,10 @@ def _extraer_bloques_numerados(
             ].start()
         else:
             fin = len(texto)
+
+        bloque = texto[
+            inicio:fin
+        ]
 
         bloques.append(
             {
@@ -170,7 +194,7 @@ def _extraer_bloques_numerados(
 
                 "texto":
                     _normalizar_espacios(
-                        texto[inicio:fin]
+                        bloque
                     ),
             }
         )
@@ -179,12 +203,24 @@ def _extraer_bloques_numerados(
 
 
 # ============================================================
-# LIMPIEZA DEL TÍTULO
+# LIMPIEZA DE TÍTULO
 # ============================================================
 
 def _limpiar_titulo_item(
     valor,
 ):
+    """
+    Limpia revisiones iniciales/finales que rodean
+    al título dentro de una fila.
+
+    Ejemplos:
+
+        0 ARCHIVO.pdf 0
+        0 DAILY REPORT PCI 10-04-2026 0
+
+    deben producir únicamente el título documental.
+    """
+
     valor = _normalizar_espacios(
         valor
     )
@@ -192,7 +228,15 @@ def _limpiar_titulo_item(
     if not valor:
         return None
 
+    # --------------------------------------------------------
     # Revisión inicial.
+    #
+    # Normalmente:
+    #   0 TITULO...
+    #
+    # pero algunos registros no la contienen.
+    # --------------------------------------------------------
+
     valor = re.sub(
         r"""
         ^
@@ -210,7 +254,16 @@ def _limpiar_titulo_item(
         | re.VERBOSE,
     )
 
+    # --------------------------------------------------------
     # Revisión final.
+    #
+    # Ejemplo:
+    #   ...25-09-2026.pdf 0
+    #
+    # o:
+    #   ...25-09-2026 0
+    # --------------------------------------------------------
+
     valor = re.sub(
         r"""
         \s+
@@ -233,12 +286,29 @@ def _limpiar_titulo_item(
 
 
 # ============================================================
-# ARCHIVO / TÍTULO
+# EXTRACCIÓN DEL ARCHIVO / TÍTULO DOCUMENTAL
 # ============================================================
 
 def _extraer_archivo_bloque(
     bloque,
 ):
+    """
+    Extrae el título documental de una fila.
+
+    Estrategia:
+
+    1. Si existe una extensión conocida (.pdf, .xlsx,
+       .dwg...), utiliza esa señal fuerte.
+
+    2. Si la extracción PDF perdió la extensión,
+       utiliza la estructura:
+
+       ITEM + CODIGO + REV + TITULO + REV + ESTADO
+
+    Esto permite recuperar también transmittals antiguos
+    cuyo content_extract no conserva '.pdf'.
+    """
+
     texto = _normalizar_espacios(
         bloque
     )
@@ -246,10 +316,10 @@ def _extraer_archivo_bloque(
     if not texto:
         return None
 
-    # --------------------------------------------------------
-    # MÉTODO 1:
-    # título con extensión
-    # --------------------------------------------------------
+    # ========================================================
+    # MÉTODO 1
+    # Archivo con extensión conocida
+    # ========================================================
 
     patron_extension = re.compile(
         rf"""
@@ -280,14 +350,18 @@ def _extraer_archivo_bloque(
 
     if candidatos:
 
-        archivo = candidatos[-1]
+        archivo = candidatos[
+            -1
+        ]
 
+        # Eliminar número del item.
         archivo = re.sub(
             r"^\d{1,3}\s+",
             "",
             archivo,
         )
 
+        # Eliminar código documental inicial.
         archivo = re.sub(
             r"""
             ^
@@ -309,10 +383,26 @@ def _extraer_archivo_bloque(
         if archivo:
             return archivo
 
-    # --------------------------------------------------------
-    # MÉTODO 2:
-    # título sin extensión conservada
-    # --------------------------------------------------------
+    # ========================================================
+    # MÉTODO 2
+    # Fila documental SIN extensión
+    # ========================================================
+    #
+    # Ejemplos reales:
+    #
+    # 1 ODATA-...-00220 0
+    #   TRANSMITA DAILY REPORT CLIMA 10-04-2026
+    #   0 Para revisión
+    #
+    # 3 ODATA-...-00295
+    #   TRANSMITAL DAILY REOPORT OOCC 29-04-2026
+    #   0 Para revisión
+    #
+    # 4 ODATA-...-00292 0
+    #   TRANSMITA DAILY REPORT CLIMA ML 28-04-2026
+    #   Para revisión
+    #
+    # ========================================================
 
     patron_sin_extension = re.compile(
         rf"""
@@ -347,16 +437,23 @@ def _extraer_archivo_bloque(
     if not match:
         return None
 
+    contenido = match.group(
+        "contenido"
+    )
+
     archivo = _limpiar_titulo_item(
-        match.group(
-            "contenido"
-        )
+        contenido
     )
 
     if not archivo:
         return None
 
-    # Protección frente a filas vacías.
+    # --------------------------------------------------------
+    # Protección contra filas vacías de plantilla.
+    #
+    # Exigimos que haya contenido alfabético suficiente.
+    # --------------------------------------------------------
+
     if not re.search(
         r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}",
         archivo,
@@ -392,55 +489,18 @@ def _extraer_codigo_documento(
 def _extraer_estado(
     bloque,
 ):
-    """
-    Devuelve el PRIMER estado encontrado físicamente
-    dentro de la fila.
-
-    Esto evita que un footer posterior como:
-
-        Emitido para REVISIÓN
-
-    sobreescriba un estado real anterior como:
-
-        Informativo
-    """
-
     texto = _normalizar_espacios(
         bloque
     )
 
-    encontrados = []
+    texto_lower = texto.lower()
 
     for estado in ESTADOS_ITEM:
 
-        match = re.search(
-            re.escape(
-                estado
-            ),
-            texto,
-            re.IGNORECASE,
-        )
+        if estado.lower() in texto_lower:
+            return estado
 
-        if match:
-
-            encontrados.append(
-                (
-                    match.start(),
-                    estado,
-                )
-            )
-
-    if not encontrados:
-        return None
-
-    encontrados.sort(
-        key=lambda elemento:
-            elemento[0]
-    )
-
-    return encontrados[
-        0
-    ][1]
+    return None
 
 
 def _extraer_fecha_archivo(
@@ -457,55 +517,7 @@ def _extraer_fecha_archivo(
     if not match:
         return None
 
-    return (
-        match
-        .group(0)
-        .replace(
-            "/",
-            "-",
-        )
-    )
-
-
-def _fecha_python(
-    valor,
-):
-    """
-    Convierte DD-MM-YYYY a date.
-    """
-
-    if not valor:
-        return None
-
-    match = re.fullmatch(
-        r"(\d{2})-(\d{2})-(\d{4})",
-        str(valor),
-    )
-
-    if not match:
-        return None
-
-    dia = int(
-        match.group(1)
-    )
-
-    mes = int(
-        match.group(2)
-    )
-
-    anio = int(
-        match.group(3)
-    )
-
-    try:
-        return date(
-            anio,
-            mes,
-            dia,
-        )
-
-    except ValueError:
-        return None
+    return match.group(0)
 
 
 # ============================================================
@@ -515,6 +527,13 @@ def _fecha_python(
 def extraer_items_transmittal(
     content_extract,
 ):
+    """
+    Convierte una tabla textual de transmittal
+    en una lista de items virtuales.
+
+    No modifica la base de datos.
+    """
+
     resultados = []
 
     bloques = (
@@ -566,7 +585,7 @@ def extraer_items_transmittal(
 
 
 # ============================================================
-# ANALIZAR DOCUMENTO INDIVIDUAL
+# ANALIZAR UN DOCUMENTO TRANSMITTAL
 # ============================================================
 
 def analizar_documento_transmittal(
@@ -615,13 +634,18 @@ def analizar_documento_transmittal(
 
 
 # ============================================================
-# QUERYSET DE TRANSMITTALS
+# QUERYSET DE POSIBLES TRANSMITTALS
 # ============================================================
 
 def obtener_documentos_transmittal(
     concepto=None,
     identificador=None,
 ):
+    """
+    Localiza Documents cuyo content_extract
+    parece corresponder a un transmittal.
+    """
+
     queryset = (
         Document.objects
         .exclude(
@@ -705,118 +729,16 @@ def obtener_documentos_transmittal(
 
 
 # ============================================================
-# FILTRAR ITEMS VIRTUALES
-# ============================================================
-
-def _item_cumple_filtros(
-    item,
-    texto_item=None,
-    fecha=None,
-    mes=None,
-    anio=None,
-    estado=None,
-):
-    archivo = str(
-        item.get(
-            "archivo"
-        )
-        or ""
-    )
-
-    # --------------------------------------------------------
-    # Texto/especialidad
-    # --------------------------------------------------------
-
-    if texto_item:
-
-        if (
-            str(texto_item).lower()
-            not in archivo.lower()
-        ):
-            return False
-
-    # --------------------------------------------------------
-    # Estado
-    # --------------------------------------------------------
-
-    if estado:
-
-        estado_item = str(
-            item.get(
-                "estado"
-            )
-            or ""
-        )
-
-        if (
-            str(estado).lower()
-            not in estado_item.lower()
-        ):
-            return False
-
-    # --------------------------------------------------------
-    # Fecha
-    # --------------------------------------------------------
-
-    fecha_item = _fecha_python(
-        item.get(
-            "fecha_archivo"
-        )
-    )
-
-    if fecha:
-
-        fecha_objetivo = _fecha_python(
-            fecha
-        )
-
-        if (
-            fecha_objetivo
-            and fecha_item
-            != fecha_objetivo
-        ):
-            return False
-
-    if mes is not None:
-
-        if (
-            not fecha_item
-            or fecha_item.month
-            != int(mes)
-        ):
-            return False
-
-    if anio is not None:
-
-        if (
-            not fecha_item
-            or fecha_item.year
-            != int(anio)
-        ):
-            return False
-
-    return True
-
-
-# ============================================================
 # ANÁLISIS GLOBAL
 # ============================================================
 
 def analizar_transmittals(
     concepto=None,
     identificador=None,
-    texto_item=None,
-    fecha=None,
-    mes=None,
-    anio=None,
-    estado=None,
 ):
     """
-    Analiza transmittals y permite filtrar
-    los items internos sin persistirlos.
-
-    Los filtros internos se aplican DESPUÉS
-    de extraer la tabla del content_extract.
+    Analiza todos los transmittals encontrados
+    y devuelve items virtuales junto con su origen.
     """
 
     documentos = (
@@ -830,13 +752,10 @@ def analizar_transmittals(
         documentos.count()
     )
 
-    items_sin_filtro = []
-    items_filtrados = []
+    items_globales = []
 
     documentos_con_items = 0
     documentos_sin_items = 0
-
-    transmittals_con_resultados = set()
 
     for documento in documentos:
 
@@ -857,57 +776,36 @@ def analizar_transmittals(
 
         for item in items:
 
-            item_global = {
-                "document_id":
-                    analisis[
-                        "document_id"
-                    ],
+            items_globales.append(
+                {
+                    "document_id":
+                        analisis[
+                            "document_id"
+                        ],
 
-                "transmittal":
-                    analisis[
-                        "transmittal"
-                    ],
+                    "transmittal":
+                        analisis[
+                            "transmittal"
+                        ],
 
-                "transmittal_code":
-                    analisis[
-                        "code"
-                    ],
+                    "transmittal_code":
+                        analisis[
+                            "code"
+                        ],
 
-                "transmittal_number":
-                    analisis[
-                        "number"
-                    ],
+                    "transmittal_number":
+                        analisis[
+                            "number"
+                        ],
 
-                "transmittal_title":
-                    analisis[
-                        "title"
-                    ],
+                    "transmittal_title":
+                        analisis[
+                            "title"
+                        ],
 
-                **item,
-            }
-
-            items_sin_filtro.append(
-                item_global
+                    **item,
+                }
             )
-
-            if _item_cumple_filtros(
-                item_global,
-                texto_item=texto_item,
-                fecha=fecha,
-                mes=mes,
-                anio=anio,
-                estado=estado,
-            ):
-
-                items_filtrados.append(
-                    item_global
-                )
-
-                transmittals_con_resultados.add(
-                    analisis[
-                        "document_id"
-                    ]
-                )
 
     return {
         "total_transmittals":
@@ -919,51 +817,28 @@ def analizar_transmittals(
         "transmittals_sin_items":
             documentos_sin_items,
 
-        "transmittals_con_resultados":
-            len(
-                transmittals_con_resultados
-            ),
-
-        "total_items_sin_filtro":
-            len(
-                items_sin_filtro
-            ),
-
         "total_items":
             len(
-                items_filtrados
+                items_globales
             ),
 
-        "filtros_items":
-            {
-                "texto_item":
-                    texto_item,
-
-                "fecha":
-                    fecha,
-
-                "mes":
-                    mes,
-
-                "anio":
-                    anio,
-
-                "estado":
-                    estado,
-            },
-
         "items":
-            items_filtrados,
+            items_globales,
     }
 
 
 # ============================================================
-# BÚSQUEDA INVERSA
+# BUSCAR ORIGEN DE UN ARCHIVO / TÍTULO
 # ============================================================
 
 def buscar_origen_archivo(
     texto_archivo,
 ):
+    """
+    Busca qué transmittal(s) contienen un archivo
+    o título documental determinado.
+    """
+
     texto_archivo = _texto(
         texto_archivo
     )
@@ -981,9 +856,7 @@ def buscar_origen_archivo(
 
     encontrados = []
 
-    objetivo = (
-        texto_archivo.lower()
-    )
+    objetivo = texto_archivo.lower()
 
     for documento in documentos:
 
@@ -1025,11 +898,6 @@ def buscar_origen_archivo(
 
                         "archivo":
                             archivo,
-
-                        "fecha_archivo":
-                            item.get(
-                                "fecha_archivo"
-                            ),
 
                         "codigo_documento":
                             item.get(
