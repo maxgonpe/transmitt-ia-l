@@ -15,4 +15,6 @@ urlpatterns = [
     path("reglas/", views.reglas_semanticas, name="reglas_semanticas",),
     path("reglas/<int:pk>/estado/", views.cambiar_estado_regla, name="cambiar_estado_regla",),
     path("test-vocabulario/", views.vocabulario_test_json, name="vocabulario_test_json",),
+    path("exportar/excel/",views.exportar_resultado_excel,name="exportar_resultado_excel",),
+    path("exportar/pdf/",views.exportar_resultado_pdf,name="exportar_resultado_pdf",),
 ]
