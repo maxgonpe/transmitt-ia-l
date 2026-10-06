@@ -27,6 +27,12 @@ from ia_local.services.vocabulario_semantico import (
     buscar_equivalencia_global,
 )
 
+CAMPOS_BUSQUEDA_TEXTO = {
+    "documents.Document": {
+        "content_extract",
+    },
+}
+
 
 class ErrorORMGenerico(ValueError):
     pass
@@ -172,6 +178,40 @@ def _construir_filtros_orm(
         # ====================================================
         # VALIDAR CAMPO FINAL
         # ====================================================
+
+                # ====================================================
+        # CAMPOS DE BÚSQUEDA TEXTUAL
+        # ====================================================
+        #
+        # Algunos campos contienen bloques extensos de texto.
+        # En ellos una igualdad exacta casi nunca corresponde
+        # a la intención humana.
+        #
+        # Ejemplo:
+        #
+        # content_extract = "DAILY REPORT"
+        #
+        # debe convertirse en:
+        #
+        # content_extract__icontains = "DAILY REPORT"
+        #
+        # Solo se aplica cuando no viene un operador explícito.
+        # ====================================================
+
+        campos_texto = CAMPOS_BUSQUEDA_TEXTO.get(
+            modelo_label,
+            set(),
+        )
+
+        if (
+            campo in campos_texto
+            and not operador
+        ):
+            operador = "icontains"
+
+
+
+
 
         info = _obtener_info_campo(
             modelo_label,
