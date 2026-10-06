@@ -6,11 +6,10 @@ from documents.models import Document
 
 
 # ============================================================
-# EXTENSIONES DOCUMENTALES CONOCIDAS
+# EXTENSIONES QUE CONSIDERAMOS ARCHIVOS DOCUMENTALES
 # ============================================================
 
 EXTENSIONES_ARCHIVO = (
-    # Documentos
     "pdf",
     "doc",
     "docx",
@@ -18,65 +17,20 @@ EXTENSIONES_ARCHIVO = (
     "xlsx",
     "xlsm",
     "csv",
-    "ppt",
-    "pptx",
-
-    # Planos / CAD
     "dwg",
     "dxf",
-
-    # Imágenes
-    "png",
-    "jpg",
-    "jpeg",
-    "gif",
-    "bmp",
-    "tif",
-    "tiff",
-    "webp",
-
-    # Comprimidos
+    "ppt",
+    "pptx",
     "zip",
     "rar",
     "7z",
-
-    # Correo
     "msg",
-    "eml",
 )
 
 
 PATRON_EXTENSION = (
     r"\.(?:"
     + "|".join(EXTENSIONES_ARCHIVO)
-    + r")"
-)
-
-
-# ============================================================
-# ESTADOS CONOCIDOS EN FILAS DE TRANSMITTAL
-# ============================================================
-
-ESTADOS_ITEM = (
-    "Para revisión",
-    "Para revision",
-    "Para información",
-    "Para informacion",
-    "Para aprobación",
-    "Para aprobacion",
-    "Informativo",
-    "Aprobado",
-    "Rechazado",
-    "Emitido",
-)
-
-
-PATRON_ESTADOS = (
-    r"(?:"
-    + "|".join(
-        re.escape(estado)
-        for estado in ESTADOS_ITEM
-    )
     + r")"
 )
 
@@ -96,7 +50,6 @@ def _normalizar_espacios(texto):
     Convierte saltos y espacios repetidos
     en espacios simples.
     """
-
     return re.sub(
         r"\s+",
         " ",
@@ -146,8 +99,8 @@ def _extraer_bloques_numerados(
     Cada bloque termina cuando comienza el siguiente
     número de item.
 
-    Todavía no decide si el bloque representa
-    realmente un documento.
+    Esta función NO decide todavía si el bloque es
+    realmente un archivo.
     """
 
     texto = _texto(
@@ -203,125 +156,22 @@ def _extraer_bloques_numerados(
 
 
 # ============================================================
-# LIMPIEZA DE TÍTULO
-# ============================================================
-
-def _limpiar_titulo_item(
-    valor,
-):
-    """
-    Limpia revisiones iniciales/finales que rodean
-    al título dentro de una fila.
-
-    Ejemplos:
-
-        0 ARCHIVO.pdf 0
-        0 DAILY REPORT PCI 10-04-2026 0
-
-    deben producir únicamente el título documental.
-    """
-
-    valor = _normalizar_espacios(
-        valor
-    )
-
-    if not valor:
-        return None
-
-    # --------------------------------------------------------
-    # Revisión inicial.
-    #
-    # Normalmente:
-    #   0 TITULO...
-    #
-    # pero algunos registros no la contienen.
-    # --------------------------------------------------------
-
-    valor = re.sub(
-        r"""
-        ^
-        (?:
-            Rev\.?\s*
-        )?
-        [A-Z0-9._-]{1,6}
-        \s+
-        (?=\S)
-        """,
-        "",
-        valor,
-        count=1,
-        flags=re.IGNORECASE
-        | re.VERBOSE,
-    )
-
-    # --------------------------------------------------------
-    # Revisión final.
-    #
-    # Ejemplo:
-    #   ...25-09-2026.pdf 0
-    #
-    # o:
-    #   ...25-09-2026 0
-    # --------------------------------------------------------
-
-    valor = re.sub(
-        r"""
-        \s+
-        (?:
-            Rev\.?\s*
-        )?
-        [A-Z0-9._-]{1,6}
-        $
-        """,
-        "",
-        valor,
-        count=1,
-        flags=re.IGNORECASE
-        | re.VERBOSE,
-    )
-
-    return _normalizar_espacios(
-        valor
-    )
-
-
-# ============================================================
-# EXTRACCIÓN DEL ARCHIVO / TÍTULO DOCUMENTAL
+# EXTRACCIÓN DEL ARCHIVO
 # ============================================================
 
 def _extraer_archivo_bloque(
     bloque,
 ):
     """
-    Extrae el título documental de una fila.
-
-    Estrategia:
-
-    1. Si existe una extensión conocida (.pdf, .xlsx,
-       .dwg...), utiliza esa señal fuerte.
-
-    2. Si la extracción PDF perdió la extensión,
-       utiliza la estructura:
-
-       ITEM + CODIGO + REV + TITULO + REV + ESTADO
-
-    Esto permite recuperar también transmittals antiguos
-    cuyo content_extract no conserva '.pdf'.
+    Intenta localizar dentro del bloque un nombre
+    documental terminado en una extensión conocida.
     """
 
     texto = _normalizar_espacios(
         bloque
     )
 
-    if not texto:
-        return None
-
-    # ========================================================
-    # MÉTODO 1
-    # Archivo con extensión conocida
-    # ========================================================
-
-    patron_extension = re.compile(
+    patron = re.compile(
         rf"""
         (?P<archivo>
             [^\n]*?
@@ -334,7 +184,7 @@ def _extraer_archivo_bloque(
 
     candidatos = []
 
-    for match in patron_extension.finditer(
+    for match in patron.finditer(
         texto
     ):
         archivo = (
@@ -348,119 +198,46 @@ def _extraer_archivo_bloque(
                 archivo
             )
 
-    if candidatos:
+    if not candidatos:
+        return None
 
-        archivo = candidatos[
-            -1
-        ]
+    # El último candidato suele corresponder al
+    # título/archivo real de la fila y evita tomar
+    # información anterior del bloque.
+    archivo = candidatos[-1]
 
-        # Eliminar número del item.
-        archivo = re.sub(
-            r"^\d{1,3}\s+",
-            "",
-            archivo,
-        )
-
-        # Eliminar código documental inicial.
-        archivo = re.sub(
-            r"""
-            ^
-            [A-Z0-9]+
-            (?:-[A-Z0-9]+){2,}
-            \s+
-            """,
-            "",
-            archivo,
-            count=1,
-            flags=re.IGNORECASE
-            | re.VERBOSE,
-        )
-
-        archivo = _limpiar_titulo_item(
-            archivo
-        )
-
-        if archivo:
-            return archivo
-
-    # ========================================================
-    # MÉTODO 2
-    # Fila documental SIN extensión
-    # ========================================================
+    # --------------------------------------------------------
+    # Limpiar encabezado:
     #
-    # Ejemplos reales:
+    # 1 CODIGO 0 ARCHIVO.pdf
     #
-    # 1 ODATA-...-00220 0
-    #   TRANSMITA DAILY REPORT CLIMA 10-04-2026
-    #   0 Para revisión
-    #
-    # 3 ODATA-...-00295
-    #   TRANSMITAL DAILY REOPORT OOCC 29-04-2026
-    #   0 Para revisión
-    #
-    # 4 ODATA-...-00292 0
-    #   TRANSMITA DAILY REPORT CLIMA ML 28-04-2026
-    #   Para revisión
-    #
-    # ========================================================
+    # --------------------------------------------------------
 
-    patron_sin_extension = re.compile(
-        rf"""
+    archivo = re.sub(
+        r"^\d{1,3}\s+",
+        "",
+        archivo,
+    )
+
+    # Eliminar código documental inicial si existe.
+    archivo = re.sub(
+        r"""
         ^
-        \d{{1,3}}
+        [A-Z0-9]+
+        (?:-[A-Z0-9]+){2,}
         \s+
-
-        (?P<codigo>
-            [A-Z0-9]+
-            (?:-[A-Z0-9]+){{3,}}
-        )
-
+        [A-Z0-9._-]+
         \s+
-
-        (?P<contenido>.*?)
-
-        \s+
-
-        (?P<estado>
-            {PATRON_ESTADOS}
-        )
-        \b
         """,
-        re.IGNORECASE
+        "",
+        archivo,
+        flags=re.IGNORECASE
         | re.VERBOSE,
     )
 
-    match = patron_sin_extension.search(
-        texto
+    return _normalizar_espacios(
+        archivo
     )
-
-    if not match:
-        return None
-
-    contenido = match.group(
-        "contenido"
-    )
-
-    archivo = _limpiar_titulo_item(
-        contenido
-    )
-
-    if not archivo:
-        return None
-
-    # --------------------------------------------------------
-    # Protección contra filas vacías de plantilla.
-    #
-    # Exigimos que haya contenido alfabético suficiente.
-    # --------------------------------------------------------
-
-    if not re.search(
-        r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}",
-        archivo,
-    ):
-        return None
-
-    return archivo
 
 
 # ============================================================
@@ -473,6 +250,9 @@ def _extraer_codigo_documento(
     texto = _normalizar_espacios(
         bloque
     )
+
+    # Ejemplo:
+    # ODATA-ST01-F5-TTAL-PPT-00703
 
     match = re.search(
         r"\b[A-Z0-9]+(?:-[A-Z0-9]+){3,}\b",
@@ -493,10 +273,21 @@ def _extraer_estado(
         bloque
     )
 
+    estados = (
+        "Para revisión",
+        "Para revision",
+        "Para aprobación",
+        "Para aprobacion",
+        "Para información",
+        "Para informacion",
+        "Aprobado",
+        "Rechazado",
+        "Emitido",
+    )
+
     texto_lower = texto.lower()
 
-    for estado in ESTADOS_ITEM:
-
+    for estado in estados:
         if estado.lower() in texto_lower:
             return estado
 
@@ -550,6 +341,8 @@ def extraer_items_transmittal(
             )
         )
 
+        # Una fila numerada sin archivo reconocido
+        # no se considera item documental.
         if not archivo:
             continue
 
@@ -644,6 +437,12 @@ def obtener_documentos_transmittal(
     """
     Localiza Documents cuyo content_extract
     parece corresponder a un transmittal.
+
+    Si concepto está definido, restringe el
+    documento contenedor por ese contenido.
+
+    Ejemplo:
+        concepto="DAILY REPORT"
     """
 
     queryset = (
@@ -655,6 +454,10 @@ def obtener_documentos_transmittal(
             content_extract=""
         )
     )
+
+    # --------------------------------------------------------
+    # Indicadores de formato transmittal
+    # --------------------------------------------------------
 
     queryset = queryset.filter(
         Q(
@@ -828,7 +631,7 @@ def analizar_transmittals(
 
 
 # ============================================================
-# BUSCAR ORIGEN DE UN ARCHIVO / TÍTULO
+# BUSCAR ORIGEN DE UN ARCHIVO
 # ============================================================
 
 def buscar_origen_archivo(
@@ -836,7 +639,7 @@ def buscar_origen_archivo(
 ):
     """
     Busca qué transmittal(s) contienen un archivo
-    o título documental determinado.
+    determinado.
     """
 
     texto_archivo = _texto(
