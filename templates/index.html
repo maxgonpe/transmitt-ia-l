@@ -2,7 +2,6 @@
 <html lang="es">
 
 <head>
-
     <meta charset="UTF-8">
 
     <meta
@@ -10,228 +9,118 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>
-        Consulta documental IA
-    </title>
+    <title>TRANSMITT-ia-L</title>
 
     <style>
 
-        * {
-            box-sizing: border-box;
+        :root {
+            color-scheme: dark;
+            font-family: Arial, sans-serif;
+            background: #101827;
+            color: #f4f7fb;
         }
 
         body {
+            align-items: center;
+            display: flex;
+            justify-content: center;
             margin: 0;
-            font-family:
-                Arial,
-                Helvetica,
-                sans-serif;
-            background: #f4f6f8;
-            color: #1f2937;
+            min-height: 100vh;
         }
 
-        .contenedor {
-            width: min(
-                1100px,
-                calc(100% - 32px)
-            );
-            margin: 40px auto;
+        main {
+            max-width: 760px;
+            padding: 2rem;
+            width: calc(100% - 4rem);
         }
 
-        .cabecera {
-            margin-bottom: 24px;
-        }
-
-        .cabecera h1 {
-            margin: 0 0 8px;
-            font-size: 30px;
-        }
-
-        .cabecera p {
+        h1 {
+            font-size: clamp(2rem, 7vw, 4.5rem);
+            letter-spacing: 0.08em;
             margin: 0;
-            color: #64748b;
+            text-align: center;
         }
 
-        .panel {
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow:
-                0 4px 18px
-                rgba(
-                    0,
-                    0,
-                    0,
-                    0.07
-                );
+        .consulta {
+            background: #182338;
+            border: 1px solid #2d405f;
+            border-radius: 16px;
+            margin-top: 2rem;
+            padding: 1.25rem;
+            text-align: left;
         }
 
         label {
             display: block;
-            margin-bottom: 8px;
             font-weight: bold;
+            margin-bottom: 0.6rem;
         }
 
         textarea {
-            width: 100%;
-            min-height: 100px;
-            resize: vertical;
-            padding: 14px;
-            border: 1px solid #cbd5e1;
+            background: #0d1524;
+            border: 1px solid #405575;
             border-radius: 8px;
-            font-size: 16px;
-            font-family: inherit;
-        }
-
-        textarea:focus {
-            outline: none;
-            border-color: #2563eb;
-        }
-
-        .acciones {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            margin-top: 16px;
+            box-sizing: border-box;
+            color: inherit;
+            font: inherit;
+            min-height: 5rem;
+            padding: 0.75rem;
+            resize: vertical;
+            width: 100%;
         }
 
         button {
+            background: #49b7a5;
             border: 0;
             border-radius: 8px;
-            padding: 11px 18px;
+            color: #07151a;
             cursor: pointer;
-            font-size: 15px;
             font-weight: bold;
+            margin-top: 0.75rem;
+            padding: 0.7rem 1.1rem;
         }
 
-        .btn-consultar {
-            background: #2563eb;
-            color: white;
+        button.secundario {
+            background: #405575;
+            color: #f4f7fb;
+            margin-left: 0.5rem;
         }
 
-        .btn-consultar:hover {
-            background: #1d4ed8;
+        button.excel {
+            background: #3fa66b;
+            color: #07151a;
         }
 
-        .btn-excel {
-            background: #15803d;
-            color: white;
-        }
-
-        .btn-excel:hover {
-            background: #166534;
-        }
-
-        .btn-pdf {
-            background: #b91c1c;
-            color: white;
-        }
-
-        .btn-pdf:hover {
-            background: #991b1b;
+        button.pdf {
+            background: #d06767;
+            color: #1b0808;
+            margin-left: 0.5rem;
         }
 
         button:disabled {
-            opacity: 0.6;
             cursor: not-allowed;
+            opacity: 0.45;
         }
 
-        #estado {
-            margin-top: 18px;
-            padding: 12px;
-            border-radius: 8px;
-            display: none;
-        }
-
-        #estado.cargando {
-            display: block;
-            background: #eff6ff;
-            color: #1d4ed8;
-        }
-
-        #estado.ok {
-            display: block;
-            background: #f0fdf4;
-            color: #166534;
-        }
-
-        #estado.error {
-            display: block;
-            background: #fef2f2;
-            color: #991b1b;
-        }
-
-        #bloqueResultado {
-            display: none;
-            margin-top: 28px;
-        }
-
-        .resumen {
-            display: grid;
-            grid-template-columns:
-                repeat(
-                    auto-fit,
-                    minmax(
-                        160px,
-                        1fr
-                    )
-                );
-            gap: 12px;
-            margin-bottom: 18px;
-        }
-
-        .dato {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 12px;
-        }
-
-        .dato strong {
-            display: block;
-            color: #475569;
-            font-size: 12px;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-        }
-
-        pre {
-            background: #0f172a;
-            color: #e2e8f0;
-            padding: 18px;
-            border-radius: 10px;
-            overflow: auto;
-            max-height: 650px;
+        #respuesta {
             white-space: pre-wrap;
-            word-break: break-word;
-            font-size: 13px;
-            line-height: 1.5;
+            margin-bottom: 0;
+        }
+
+        .ejemplo {
+            color: #aebbd0;
+            font-size: 0.9rem;
         }
 
         .exportaciones {
+            border-top: 1px solid #2d405f;
             display: none;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 18px;
+            margin-top: 1rem;
+            padding-top: 0.5rem;
         }
 
-        @media (
-            max-width: 600px
-        ) {
-
-            .contenedor {
-                margin: 20px auto;
-            }
-
-            .panel {
-                padding: 16px;
-            }
-
-            .acciones button,
-            .exportaciones button {
-                width: 100%;
-            }
-
+        .exportaciones form {
+            display: inline;
         }
 
     </style>
@@ -240,77 +129,103 @@
 
 <body>
 
-<div class="contenedor">
-
-    <div class="cabecera">
+    <main>
 
         <h1>
             TRANSMITT-ia-L
         </h1>
 
-        <p>
-            Consulta información del sistema
-            utilizando lenguaje natural.
-        </p>
-
-    </div>
-
-
-    <div class="panel">
-
-        <form
-            id="formConsulta"
-            method="post"
+        <section
+            class="consulta"
+            aria-labelledby="consulta-titulo"
         >
 
-            {% csrf_token %}
+            <h2 id="consulta-titulo">
+                Consulta documental
+            </h2>
 
-            <label for="pregunta">
-                Pregunta
-            </label>
+            <p class="ejemplo">
+                Ejemplo:
+                ¿cuántos archivos adjuntos tiene el
+                transmittal ODATA-BUF-CM-TTAL-00184?
+            </p>
 
-            <textarea
-                id="pregunta"
-                name="pregunta"
-                placeholder="Ejemplo: ¿qué documentos contenía el transmittal 703?"
-                required
-            ></textarea>
+            <!--
+            ==================================================
+            CONSULTA IA
+            ==================================================
+            Conservamos el nombre de URL que YA tienes:
+            name="consultar"
+            ==================================================
+            -->
 
+            <form
+                id="consulta-form"
+                action="{% url 'ia_local:consultar' %}"
+                method="post"
+            >
 
-            <div class="acciones">
+                {% csrf_token %}
+
+                <label for="pregunta">
+                    Escribe tu consulta
+                </label>
+
+                <textarea
+                    id="pregunta"
+                    name="pregunta"
+                    required
+                    placeholder="¿Cuántos archivos adjuntos tiene el TTAL-184?"
+                ></textarea>
 
                 <button
                     type="submit"
-                    class="btn-consultar"
-                    id="btnConsultar"
+                    id="btn-consultar"
                 >
                     Consultar
                 </button>
 
-            </div>
+                <button
+                    type="button"
+                    class="secundario"
+                    id="limpiar"
+                >
+                    Limpiar
+                </button>
 
-        </form>
+            </form>
 
 
-        <div id="estado"></div>
+            <!--
+            ==================================================
+            RESULTADO
+            ==================================================
+            -->
+
+            <p
+                id="respuesta"
+                role="status"
+                aria-live="polite"
+            ></p>
 
 
-        <section id="bloqueResultado">
-
-            <h2>
-                Resultado
-            </h2>
-
+            <!--
+            ==================================================
+            EXPORTACIONES
+            ==================================================
+            -->
 
             <div
                 class="exportaciones"
                 id="exportaciones"
             >
 
+                <!-- EXCEL -->
+
                 <form
-                    method="post"
+                    id="form-excel"
                     action="{% url 'ia_local:exportar_resultado_excel' %}"
-                    id="formExcel"
+                    method="post"
                 >
 
                     {% csrf_token %}
@@ -318,18 +233,20 @@
                     <input
                         type="hidden"
                         name="pregunta"
-                        id="preguntaExcel"
+                        id="excel-pregunta"
                     >
 
                     <input
                         type="hidden"
                         name="respuesta_json"
-                        id="respuestaExcel"
+                        id="excel-respuesta"
                     >
 
                     <button
                         type="submit"
-                        class="btn-excel"
+                        class="excel"
+                        id="btn-excel"
+                        disabled
                     >
                         Descargar Excel
                     </button>
@@ -337,11 +254,13 @@
                 </form>
 
 
+                <!-- PDF -->
+
                 <form
-                    method="post"
+                    id="form-pdf"
                     action="{% url 'ia_local:exportar_resultado_pdf' %}"
+                    method="post"
                     target="_blank"
-                    id="formPdf"
                 >
 
                     {% csrf_token %}
@@ -349,18 +268,20 @@
                     <input
                         type="hidden"
                         name="pregunta"
-                        id="preguntaPdf"
+                        id="pdf-pregunta"
                     >
 
                     <input
                         type="hidden"
                         name="respuesta_json"
-                        id="respuestaPdf"
+                        id="pdf-respuesta"
                     >
 
                     <button
                         type="submit"
-                        class="btn-pdf"
+                        class="pdf"
+                        id="btn-pdf"
+                        disabled
                     >
                         Ver / Descargar PDF
                     </button>
@@ -369,405 +290,521 @@
 
             </div>
 
-
-            <div class="resumen">
-
-                <div class="dato">
-
-                    <strong>
-                        Origen
-                    </strong>
-
-                    <span id="origen">
-                        -
-                    </span>
-
-                </div>
-
-
-                <div class="dato">
-
-                    <strong>
-                        Tema
-                    </strong>
-
-                    <span id="tema">
-                        -
-                    </span>
-
-                </div>
-
-
-                <div class="dato">
-
-                    <strong>
-                        Operación
-                    </strong>
-
-                    <span id="operacion">
-                        -
-                    </span>
-
-                </div>
-
-
-                <div class="dato">
-
-                    <strong>
-                        Total
-                    </strong>
-
-                    <span id="total">
-                        -
-                    </span>
-
-                </div>
-
-            </div>
-
-
-            <pre id="respuesta"></pre>
-
         </section>
 
-    </div>
-
-</div>
+    </main>
 
 
-<script>
+    <script>
 
-    let ultimaRespuestaEstructurada =
-        null;
+        /*
+        ======================================================
+        REFERENCIAS DOM
+        ======================================================
+        */
+
+        const form =
+            document.getElementById(
+                "consulta-form"
+            );
+
+        const respuesta =
+            document.getElementById(
+                "respuesta"
+            );
+
+        const pregunta =
+            document.getElementById(
+                "pregunta"
+            );
+
+        const botonConsultar =
+            document.getElementById(
+                "btn-consultar"
+            );
+
+        const exportaciones =
+            document.getElementById(
+                "exportaciones"
+            );
+
+        const botonExcel =
+            document.getElementById(
+                "btn-excel"
+            );
+
+        const botonPdf =
+            document.getElementById(
+                "btn-pdf"
+            );
 
 
-    function getCookie(
-        name
-    ) {
+        /*
+        ======================================================
+        ESTADO EXPORTACIONES
+        ======================================================
+        */
 
-        let cookieValue =
-            null;
+        function desactivarExportaciones() {
 
-        if (
-            document.cookie &&
-            document.cookie !== ""
-        ) {
+            botonExcel.disabled = true;
+            botonPdf.disabled = true;
 
-            const cookies =
-                document.cookie.split(
-                    ";"
-                );
+            exportaciones.style.display =
+                "none";
 
-            for (
-                let i = 0;
-                i < cookies.length;
-                i++
-            ) {
+            document
+                .getElementById(
+                    "excel-pregunta"
+                )
+                .value = "";
 
-                const cookie =
-                    cookies[
-                        i
-                    ].trim();
+            document
+                .getElementById(
+                    "pdf-pregunta"
+                )
+                .value = "";
 
-                if (
-                    cookie.substring(
-                        0,
-                        name.length + 1
-                    ) ===
-                    (
-                        name + "="
-                    )
-                ) {
+            document
+                .getElementById(
+                    "excel-respuesta"
+                )
+                .value = "";
 
-                    cookieValue =
-                        decodeURIComponent(
-                            cookie.substring(
-                                name.length + 1
-                            )
-                        );
-
-                    break;
-                }
-
-            }
+            document
+                .getElementById(
+                    "pdf-respuesta"
+                )
+                .value = "";
 
         }
 
-        return cookieValue;
-    }
+
+        function activarExportaciones(
+            textoPregunta,
+            respuestaEstructurada
+        ) {
+
+            /*
+            La vista de exportación recibe exactamente
+            la respuesta ya obtenida.
+
+            NO vuelve a ejecutar Qwen.
+            */
+
+            const respuestaJSON =
+                JSON.stringify(
+                    respuestaEstructurada
+                );
+
+            document
+                .getElementById(
+                    "excel-pregunta"
+                )
+                .value =
+                textoPregunta;
+
+            document
+                .getElementById(
+                    "pdf-pregunta"
+                )
+                .value =
+                textoPregunta;
+
+            document
+                .getElementById(
+                    "excel-respuesta"
+                )
+                .value =
+                respuestaJSON;
+
+            document
+                .getElementById(
+                    "pdf-respuesta"
+                )
+                .value =
+                respuestaJSON;
+
+            botonExcel.disabled = false;
+            botonPdf.disabled = false;
+
+            exportaciones.style.display =
+                "block";
+
+        }
 
 
-    function mostrarEstado(
-        tipo,
-        mensaje
-    ) {
+        /*
+        ======================================================
+        LIMPIAR
+        ======================================================
+        */
 
-        const estado =
-            document.getElementById(
-                "estado"
+        document
+            .getElementById(
+                "limpiar"
+            )
+            .addEventListener(
+                "click",
+                () => {
+
+                    pregunta.value = "";
+
+                    respuesta.textContent =
+                        "";
+
+                    desactivarExportaciones();
+
+                    pregunta.focus();
+
+                }
             );
 
-        estado.className =
-            tipo;
 
-        estado.textContent =
-            mensaje;
+        /*
+        ======================================================
+        CONSULTA IA
+        ======================================================
+        */
 
-    }
-
-
-    function prepararExportaciones(
-        pregunta,
-        respuesta
-    ) {
-
-        const json =
-            JSON.stringify(
-                respuesta
-            );
-
-        document
-            .getElementById(
-                "preguntaExcel"
-            )
-            .value =
-            pregunta;
-
-        document
-            .getElementById(
-                "preguntaPdf"
-            )
-            .value =
-            pregunta;
-
-        document
-            .getElementById(
-                "respuestaExcel"
-            )
-            .value =
-            json;
-
-        document
-            .getElementById(
-                "respuestaPdf"
-            )
-            .value =
-            json;
-
-        document
-            .getElementById(
-                "exportaciones"
-            )
-            .style.display =
-            "flex";
-
-    }
-
-
-    document
-        .getElementById(
-            "formConsulta"
-        )
-        .addEventListener(
+        form.addEventListener(
             "submit",
-            async function (
-                event
-            ) {
+            async (event) => {
 
                 event.preventDefault();
 
+                const textoPregunta =
+                    pregunta.value.trim();
 
-                const pregunta =
-                    document
-                        .getElementById(
-                            "pregunta"
-                        )
-                        .value
-                        .trim();
+                if (!textoPregunta) {
 
+                    respuesta.textContent =
+                        "Escribe una consulta.";
 
-                if (
-                    !pregunta
-                ) {
-
-                    mostrarEstado(
-                        "error",
-                        "Escribe una pregunta."
-                    );
+                    pregunta.focus();
 
                     return;
                 }
 
 
-                const boton =
-                    document
-                        .getElementById(
-                            "btnConsultar"
-                        );
+                /*
+                ------------------------------------------------
+                Estado inicial
+                ------------------------------------------------
+                */
 
+                respuesta.textContent =
+                    "Consultando...";
 
-                boton.disabled =
+                botonConsultar.disabled =
                     true;
 
-
-                document
-                    .getElementById(
-                        "exportaciones"
-                    )
-                    .style.display =
-                    "none";
-
-
-                mostrarEstado(
-                    "cargando",
-                    "Procesando consulta..."
-                );
+                desactivarExportaciones();
 
 
                 try {
 
-                    const datos =
-                        new FormData();
+                    /*
+                    ------------------------------------------------
+                    Ejecutamos consulta
+                    ------------------------------------------------
+                    */
 
-                    datos.append(
-                        "pregunta",
-                        pregunta
-                    );
-
-
-                    const respuestaHttp =
+                    const response =
                         await fetch(
-                            "{% url 'ia_local:consulta_ia_json' %}",
+                            form.action,
                             {
                                 method:
                                     "POST",
 
-                                headers: {
-                                    "X-CSRFToken":
-                                        getCookie(
-                                            "csrftoken"
-                                        )
-                                },
-
                                 body:
-                                    datos
+                                    new FormData(
+                                        form
+                                    ),
+
+                                headers: {
+                                    "X-Requested-With":
+                                        "XMLHttpRequest"
+                                }
                             }
                         );
 
 
-                    const data =
-                        await respuestaHttp
-                            .json();
+                    /*
+                    ------------------------------------------------
+                    IMPORTANTE
 
+                    Primero leemos como TEXTO.
+
+                    De este modo si Django devuelve HTML
+                    por un 403, 404, 500, login, etc.,
+                    NO ejecutamos response.json() sobre HTML.
+                    ------------------------------------------------
+                    */
+
+                    const contenido =
+                        await response.text();
+
+
+                    const contentType =
+                        response.headers.get(
+                            "content-type"
+                        ) || "";
+
+
+                    /*
+                    ------------------------------------------------
+                    Verificamos que Django realmente haya
+                    enviado JSON.
+                    ------------------------------------------------
+                    */
 
                     if (
-                        !respuestaHttp.ok ||
-                        !data.ok
+                        !contentType.includes(
+                            "application/json"
+                        )
                     ) {
 
+                        console.error(
+                            "Respuesta no JSON:",
+                            contenido
+                        );
+
                         throw new Error(
-                            data.error ||
-                            "No fue posible procesar la consulta."
+                            "El servidor no devolvió JSON "
+                            + "(HTTP "
+                            + response.status
+                            + "). Revisa el log de Django."
                         );
 
                     }
 
 
-                    ultimaRespuestaEstructurada =
-                        data.respuesta_estructurada;
+                    /*
+                    ------------------------------------------------
+                    Ahora sí parseamos.
+                    ------------------------------------------------
+                    */
 
+                    let data;
 
-                    document
-                        .getElementById(
-                            "origen"
-                        )
-                        .textContent =
-                        data.origen || "-";
+                    try {
 
+                        data =
+                            JSON.parse(
+                                contenido
+                            );
 
-                    document
-                        .getElementById(
-                            "tema"
-                        )
-                        .textContent =
-                        data.tema || "-";
+                    }
+                    catch (errorJSON) {
 
-
-                    document
-                        .getElementById(
-                            "operacion"
-                        )
-                        .textContent =
-                        data.operacion || "-";
-
-
-                    document
-                        .getElementById(
-                            "total"
-                        )
-                        .textContent =
-                        data.total ?? 0;
-
-
-                    document
-                        .getElementById(
-                            "respuesta"
-                        )
-                        .textContent =
-                        JSON.stringify(
-                            data.respuesta_estructurada,
-                            null,
-                            2
+                        console.error(
+                            "JSON inválido:",
+                            contenido
                         );
 
+                        throw new Error(
+                            "El servidor devolvió una "
+                            + "respuesta JSON inválida."
+                        );
 
-                    document
-                        .getElementById(
-                            "bloqueResultado"
-                        )
-                        .style.display =
-                        "block";
+                    }
 
 
-                    prepararExportaciones(
-                        pregunta,
+                    /*
+                    ------------------------------------------------
+                    Error enviado correctamente como JSON.
+                    ------------------------------------------------
+                    */
+
+                    if (
+                        !response.ok ||
+                        data.ok === false
+                    ) {
+
+                        throw new Error(
+                            data.error ||
+                            (
+                                "No fue posible completar "
+                                + "la consulta."
+                            )
+                        );
+
+                    }
+
+
+                    /*
+                    ------------------------------------------------
+                    RESPUESTA VISIBLE
+
+                    Conservamos el comportamiento anterior.
+                    ------------------------------------------------
+                    */
+
+                    if (
+                        typeof data.respuesta ===
+                        "string"
+                    ) {
+
+                        respuesta.textContent =
+                            data.respuesta;
+
+                    }
+                    else if (
+                        data.respuesta !== undefined &&
+                        data.respuesta !== null
+                    ) {
+
+                        respuesta.textContent =
+                            JSON.stringify(
+                                data.respuesta,
+                                null,
+                                2
+                            );
+
+                    }
+                    else if (
                         data.respuesta_estructurada
-                    );
+                    ) {
+
+                        respuesta.textContent =
+                            JSON.stringify(
+                                data.respuesta_estructurada,
+                                null,
+                                2
+                            );
+
+                    }
+                    else {
+
+                        respuesta.textContent =
+                            "Consulta procesada "
+                            + "sin contenido visible.";
+
+                    }
 
 
-                    mostrarEstado(
-                        "ok",
-                        "Consulta procesada correctamente."
-                    );
+                    /*
+                    ------------------------------------------------
+                    RESPUESTA PARA EXPORTAR
+                    ------------------------------------------------
 
-                }
+                    Prioridad:
 
-                catch (
-                    error
-                ) {
+                    1. respuesta_estructurada
+                    2. respuesta si ya es objeto
+                    3. intentar interpretar respuesta textual
+                    4. generar estructura mínima
 
-                    ultimaRespuestaEstructurada =
+                    El fallo de JSON.parse aquí NO rompe
+                    la consulta porque está protegido.
+                    ------------------------------------------------
+                    */
+
+                    let resultadoExportable =
                         null;
 
 
-                    document
-                        .getElementById(
-                            "bloqueResultado"
-                        )
-                        .style.display =
-                        "none";
+                    if (
+                        data.respuesta_estructurada &&
+                        typeof data.respuesta_estructurada
+                            === "object"
+                    ) {
+
+                        resultadoExportable =
+                            data.respuesta_estructurada;
+
+                    }
+                    else if (
+                        data.respuesta &&
+                        typeof data.respuesta
+                            === "object"
+                    ) {
+
+                        resultadoExportable =
+                            data.respuesta;
+
+                    }
+                    else if (
+                        typeof data.respuesta ===
+                        "string"
+                    ) {
+
+                        try {
+
+                            resultadoExportable =
+                                JSON.parse(
+                                    data.respuesta
+                                );
+
+                        }
+                        catch (
+                            errorRespuesta
+                        ) {
+
+                            /*
+                            La respuesta es texto normal.
+                            La encapsulamos.
+
+                            No es un error.
+                            */
+
+                            resultadoExportable = {
+                                tipo:
+                                    "respuesta_texto",
+
+                                total:
+                                    data.total ?? null,
+
+                                respuesta:
+                                    data.respuesta
+                            };
+
+                        }
+
+                    }
 
 
-                    mostrarEstado(
-                        "error",
-                        error.message
-                    );
+                    /*
+                    ------------------------------------------------
+                    Habilitamos exportación solamente si existe
+                    algo realmente exportable.
+                    ------------------------------------------------
+                    */
+
+                    if (
+                        resultadoExportable &&
+                        typeof resultadoExportable
+                            === "object"
+                    ) {
+
+                        activarExportaciones(
+                            textoPregunta,
+                            resultadoExportable
+                        );
+
+                    }
 
                 }
+                catch (error) {
 
+                    console.error(
+                        error
+                    );
+
+                    respuesta.textContent =
+                        error.message ||
+                        (
+                            "No fue posible conectar "
+                            + "con el servicio de consultas."
+                        );
+
+                    desactivarExportaciones();
+
+                }
                 finally {
 
-                    boton.disabled =
+                    botonConsultar.disabled =
                         false;
 
                 }
@@ -775,7 +812,16 @@
             }
         );
 
-</script>
+
+        /*
+        ======================================================
+        ESTADO INICIAL
+        ======================================================
+        */
+
+        desactivarExportaciones();
+
+    </script>
 
 </body>
 
