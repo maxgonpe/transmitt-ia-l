@@ -1,7 +1,6 @@
 import re
 import unicodedata
 
-
 from ia_local.services.resolvedor import (
     interpretar_con_memoria,
 )
@@ -15,28 +14,23 @@ from ia_local.services.orm_generico import (
     ejecutar_consulta,
 )
 
+from ia_local.services.consultas_transmittal import (
+    detectar_consulta_transmittal,
+    ejecutar_consulta_transmittal,
+)
+
 
 class ErrorMotorGenerico(ValueError):
     pass
 
 
 # ============================================================
-# NORMALIZACIÓN DE TEXTO
+# NORMALIZACIÓN SIMPLE DE PREGUNTA
 # ============================================================
 
 def _normalizar_texto(
     texto,
 ):
-    """
-    Convierte texto a minúsculas y elimina acentos.
-
-    Ejemplo:
-
-        "¿Cuáles son esas RDI?"
-            ↓
-        "¿cuales son esas rdi?"
-    """
-
     texto = str(
         texto or ""
     ).lower()
@@ -54,112 +48,32 @@ def _normalizar_texto(
         ) != "Mn"
     )
 
-    return texto
+    texto = re.sub(
+        r"\s+",
+        " ",
+        texto,
+    )
+
+    return texto.strip()
 
 
 # ============================================================
-# DETECTAR CONTEO
+# DETECCIÓN CONTEO / LISTADO
 # ============================================================
 
 def _pregunta_pide_conteo(
     pregunta,
 ):
-    """
-    Detecta expresiones que solicitan cantidad.
-
-    Ejemplos:
-
-        cuantas rdi...
-        cuantos documentos...
-        cantidad de...
-        total de...
-        numero de...
-    """
-
-    texto = _normalizar_texto(
-        pregunta
-    )
-
-    return bool(
-        re.search(
-            r"\b("
-            r"cuantos|"
-            r"cuantas|"
-            r"cantidad|"
-            r"total|"
-            r"numero\s+de"
-            r")\b",
-            texto,
-        )
-    )
-
-
-# ============================================================
-# DETECTAR LISTADO
-# ============================================================
-
-def _pregunta_pide_listado(
-    pregunta,
-):
-    """
-    Detecta si además del conteo el usuario
-    solicita conocer/ver los registros.
-
-    Ejemplos:
-
-        cuales son
-        muestramelas
-        listamelas
-        dime cuales
-        dame las rdi
-        lista las rdi
-    """
-
     texto = _normalizar_texto(
         pregunta
     )
 
     patrones = (
-
-        r"\bcuales\b",
-
-        r"\bcuales\s+son\b",
-
-        r"\bdime\s+cuales\b",
-
-        r"\blista\b",
-
-        r"\blistar\b",
-
-        r"\blistame\b",
-
-        r"\blistamelas\b",
-
-        r"\blistamelos\b",
-
-        r"\bmuestra\b",
-
-        r"\bmuestrame\b",
-
-        r"\bmuestramelas\b",
-
-        r"\bmuestramelos\b",
-
-        r"\bmostrar\b",
-
-        r"\bdame\b",
-
-        r"\bver\b",
-
-        r"\bbusca\b",
-
-        r"\bencuentra\b",
-
-        r"\bque\s+rdi\b",
-
-        r"\bque\s+documentos\b",
-
-        r"\bque\s+registros\b",
+        r"\bcuantos\b",
+        r"\bcuantas\b",
+        r"\bcantidad\b",
+        r"\bnumero de\b",
+        r"\btotal de\b",
     )
 
     return any(
@@ -171,43 +85,42 @@ def _pregunta_pide_listado(
     )
 
 
-# ============================================================
-# AJUSTAR OPERACIÓN DESDE LA PREGUNTA
-# ============================================================
+def _pregunta_pide_listado(
+    pregunta,
+):
+    texto = _normalizar_texto(
+        pregunta
+    )
+
+    patrones = (
+        r"\bcuales\b",
+        r"\blista\b",
+        r"\blistar\b",
+        r"\bmuestra\b",
+        r"\bmostrar\b",
+        r"\bdame\b",
+        r"\bque son\b",
+    )
+
+    return any(
+        re.search(
+            patron,
+            texto,
+        )
+        for patron in patrones
+    )
+
 
 def _ajustar_operacion_por_pregunta(
     pregunta,
     intencion,
 ):
     """
-    Ajusta únicamente la operación/cantidad cuando
-    la propia pregunta contiene información más
-    específica que la interpretación inicial.
+    Corrige únicamente la operación general.
 
-    Caso principal:
-
-        "cuantas rdi pendientes hay
-         y cuales son esas rdi?"
-
-    Qwen suele devolver:
-
-        operacion = contar
-
-    Pero el usuario pidió:
-
-        - saber cuántas existen
-        - ver cuáles son
-
-    Como la operación LISTAR ya devuelve:
-
-        total
-        +
-        resultados
-
-    LISTAR satisface ambas necesidades.
-
-    Importante:
-    NO modifica tema ni filtros.
+    Si la pregunta pide cantidad + cuáles,
+    listar es suficiente porque el resultado
+    contiene total + registros.
     """
 
     intencion = dict(
@@ -226,16 +139,10 @@ def _ajustar_operacion_por_pregunta(
         )
     )
 
-
-    # --------------------------------------------------------
-    # CONTEO + LISTADO
-    # --------------------------------------------------------
-
     if (
         pide_conteo
         and pide_listado
     ):
-
         intencion[
             "operacion"
         ] = "listar"
@@ -244,17 +151,7 @@ def _ajustar_operacion_por_pregunta(
             "cantidad"
         ] = "todos"
 
-        return intencion
-
-
-    # --------------------------------------------------------
-    # SOLO CONTEO
-    # --------------------------------------------------------
-
-    if (
-        pide_conteo
-        and not pide_listado
-    ):
+    elif pide_conteo:
 
         intencion[
             "operacion"
@@ -264,30 +161,17 @@ def _ajustar_operacion_por_pregunta(
             "cantidad"
         ] = "todos"
 
-        return intencion
-
-
-    # --------------------------------------------------------
-    # SOLO LISTADO
-    # --------------------------------------------------------
-
-    if (
-        pide_listado
-        and not pide_conteo
-    ):
+    elif pide_listado:
 
         intencion[
             "operacion"
         ] = "listar"
 
-        return intencion
-
-
     return intencion
 
 
 # ============================================================
-# MOTOR PRINCIPAL
+# MOTOR
 # ============================================================
 
 def ejecutar_pregunta(
@@ -295,17 +179,18 @@ def ejecutar_pregunta(
     limite=20,
 ):
     """
-    IA-CORE018
-
-    Ejecuta el flujo completo:
+    Flujo general:
 
         pregunta
-        -> memoria / Qwen
-        -> intención
-        -> validación
-        -> ajuste semántico desde pregunta
-        -> ORM
-        -> PostgreSQL
+            |
+            +--> consulta documental interna de transmittal
+            |       -> parser determinista
+            |
+            +--> memoria / Qwen
+                    -> intención
+                    -> validación
+                    -> ORM
+                    -> PostgreSQL
     """
 
     if not isinstance(
@@ -317,59 +202,163 @@ def ejecutar_pregunta(
             "La pregunta está vacía."
         )
 
-
     pregunta = pregunta.strip()
 
+    # ========================================================
+    # 0. FAMILIA ESPECIALIZADA: TRANSMITTALS
+    # ========================================================
+
+    if detectar_consulta_transmittal(
+        pregunta
+    ):
+
+        resultado_especial = (
+            ejecutar_consulta_transmittal(
+                pregunta
+            )
+        )
+
+        accion = resultado_especial[
+            "accion"
+        ]
+
+        operacion = (
+            "contar"
+            if accion == "contar"
+            else "listar"
+        )
+
+        intencion = {
+            "tema":
+                "transmittal_items",
+
+            "operacion":
+                operacion,
+
+            "filtros":
+                {
+                    "concepto":
+                        resultado_especial.get(
+                            "concepto"
+                        ),
+
+                    "transmittal":
+                        resultado_especial.get(
+                            "identificador_transmittal"
+                        ),
+
+                    "archivo":
+                        resultado_especial.get(
+                            "archivo_buscado"
+                        ),
+                },
+
+            "cantidad":
+                "todos",
+
+            "orden":
+                "ninguno",
+        }
+
+        return {
+            "pregunta":
+                pregunta,
+
+            "origen":
+                "MOTOR_TRANSMITTAL",
+
+            "intencion_raw":
+                intencion,
+
+            "intencion":
+                intencion,
+
+            "tema":
+                "transmittal_items",
+
+            "modelo":
+                "documents.Document",
+
+            "operacion":
+                operacion,
+
+            "cantidad":
+                "todos",
+
+            "orden":
+                "ninguno",
+
+            "filtros_orm":
+                {
+                    "analisis":
+                        "content_extract",
+
+                    "concepto":
+                        resultado_especial.get(
+                            "concepto"
+                        ),
+                },
+
+            "total":
+                resultado_especial.get(
+                    "total",
+                    0,
+                ),
+
+            "limite":
+                limite,
+
+            "objetos":
+                [],
+
+            "tipo_resultado":
+                "transmittal_items",
+
+            "resultado_especial":
+                resultado_especial,
+        }
 
     # ========================================================
-    # 1. MEMORIA O QWEN
+    # 1. MEMORIA / QWEN
     # ========================================================
 
     resolucion = interpretar_con_memoria(
         pregunta
     )
 
-
     if not isinstance(
         resolucion,
         dict,
     ):
-
         raise ErrorMotorGenerico(
-            "El resolvedor no devolvió "
-            "una estructura válida."
+            "La resolución semántica no devolvió "
+            "un diccionario."
         )
-
 
     origen = resolucion.get(
         "origen"
     )
 
-
     intencion_raw = resolucion.get(
         "intencion"
     )
-
 
     if not isinstance(
         intencion_raw,
         dict,
     ):
-
         raise ErrorMotorGenerico(
-            "La intención obtenida "
-            "no es un diccionario."
+            "La resolución semántica no contiene "
+            "una intención válida."
         )
 
-
     # ========================================================
-    # 2. VALIDAR CONTRATO
+    # 2. VALIDAR Y NORMALIZAR CONTRATO
     # ========================================================
 
     validar_intencion_con_catalogo(
         intencion_raw
     )
-
 
     intencion = (
         normalizar_intencion_basica(
@@ -377,36 +366,14 @@ def ejecutar_pregunta(
         )
     )
 
-
-    # ========================================================
-    # 3. AJUSTE SEMÁNTICO DESDE LA PREGUNTA
-    # ========================================================
-    #
-    # Este paso ocurre DESPUÉS de Qwen/memoria.
-    #
-    # No altera filtros.
-    #
-    # Ejemplo:
-    #
-    # Qwen:
-    #     contar
-    #
-    # Pregunta:
-    #     "cuantas hay y cuales son"
-    #
-    # Resultado:
-    #     listar
-    #
-    # LISTAR conserva el total y además devuelve objetos.
-    # ========================================================
-
+    # Ajuste semántico general:
+    # "cuántas hay y cuáles son"
     intencion = (
         _ajustar_operacion_por_pregunta(
             pregunta,
             intencion,
         )
     )
-
 
     tema = intencion[
         "tema"
@@ -428,24 +395,21 @@ def ejecutar_pregunta(
         "orden"
     ]
 
-
     # ========================================================
-    # 4. OPERACIONES PERMITIDAS
+    # 3. OPERACIONES AUTORIZADAS
     # ========================================================
 
     if operacion not in {
         "listar",
         "contar",
     }:
-
         raise ErrorMotorGenerico(
-            f"Operación no soportada "
-            f"por el motor: {operacion}"
+            f"Operación no permitida: "
+            f"{operacion}"
         )
 
-
     # ========================================================
-    # 5. ORM
+    # 4. ORM DETERMINISTA
     # ========================================================
 
     resultado_orm = ejecutar_consulta(
@@ -454,82 +418,57 @@ def ejecutar_pregunta(
         limite=limite,
     )
 
-
     # ========================================================
-    # 6. RESPUESTA ESTRUCTURADA
+    # 5. RESPUESTA INTERNA
     # ========================================================
 
-    resultado = {
-
+    return {
         "pregunta":
             pregunta,
-
 
         "origen":
             origen,
 
-
-        # ----------------------------------------------------
-        # Lo que originalmente produjo Qwen/memoria
-        # ----------------------------------------------------
-
         "intencion_raw":
             intencion_raw,
-
-
-        # ----------------------------------------------------
-        # Intención definitiva usada por el motor
-        # ----------------------------------------------------
 
         "intencion":
             intencion,
 
-
         "tema":
             tema,
-
 
         "modelo":
             resultado_orm[
                 "modelo"
             ],
 
-
         "operacion":
             operacion,
-
 
         "cantidad":
             cantidad,
 
-
         "orden":
             orden,
-
 
         "filtros_orm":
             resultado_orm[
                 "filtros_orm"
             ],
 
-
         "total":
             resultado_orm[
                 "total"
             ],
-
 
         "limite":
             resultado_orm[
                 "limite"
             ],
 
-
         "objetos":
             resultado_orm[
                 "objetos"
             ],
     }
-
-
-    return resultado

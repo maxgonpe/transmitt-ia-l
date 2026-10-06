@@ -1,242 +1,336 @@
-"""
-IA-CORE021 / IA-CORE024
-
-Formateador genérico y portable de resultados.
-"""
-
-from ia_local.config import (
-    IA_MAX_CAMPOS_RESPUESTA,
+from datetime import (
+    date,
+    datetime,
 )
 
-from ia_local.services.catalogo_semantico import (
-    generar_catalogo_semantico,
-)
+from decimal import Decimal
 
 
-class ErrorFormateadorResultado(
-    ValueError
-):
+class ErrorFormateadorResultado(ValueError):
     pass
 
 
-def _valor_legible(
+# ============================================================
+# SERIALIZACIÓN GENÉRICA
+# ============================================================
+
+def _valor_serializable(
     valor,
 ):
     if valor is None:
         return None
 
-    if valor == "":
-        return None
-
-    # Relaciones Django simples.
-    if hasattr(
+    if isinstance(
         valor,
-        "pk",
+        (
+            str,
+            int,
+            float,
+            bool,
+        ),
+    ):
+        return valor
+
+    if isinstance(
+        valor,
+        Decimal,
     ):
         return str(
             valor
         )
+
+    if isinstance(
+        valor,
+        (
+            date,
+            datetime,
+        ),
+    ):
+        return valor.isoformat()
 
     return str(
         valor
     )
 
 
-def _campos_modelo_por_tema(
-    tema,
-):
-    catalogo = (
-        generar_catalogo_semantico()
-    )
-
-    info = catalogo.get(
-        tema
-    )
-
-    if not info:
-
-        raise ErrorFormateadorResultado(
-            f"Tema no reconocido: {tema}"
-        )
-
-    return info.get(
-        "campos",
-        {},
-    )
-
-
-def serializar_objeto(
-    tema,
+def _serializar_objeto_django(
     objeto,
 ):
     """
-    Convierte una instancia Django en una
-    estructura segura usando exclusivamente
-    campos autorizados.
+    Serializador genérico y seguro para objetos Django.
+
+    Evita entregar relaciones completas o estructuras
+    internas no serializables.
     """
 
-    campos = (
-        _campos_modelo_por_tema(
-            tema
-        )
-    )
+    if objeto is None:
+        return None
 
-    datos = {}
-
-    for campo, campo_info in (
-        campos.items()
+    if not hasattr(
+        objeto,
+        "_meta",
     ):
+        return _valor_serializable(
+            objeto
+        )
 
-        if (
-            len(datos)
-            >=
-            IA_MAX_CAMPOS_RESPUESTA
-        ):
-            break
+    resultado = {}
 
-        # Relaciones reversas/múltiples
-        # no se presentan como valor simple.
-        if campo_info.get(
-            "multiple"
-        ):
-            continue
+    for field in objeto._meta.fields:
 
-        if not hasattr(
-            objeto,
-            campo,
-        ):
-            continue
+        nombre = field.name
 
         try:
-
             valor = getattr(
                 objeto,
-                campo,
+                nombre,
             )
-
         except Exception:
-
             continue
 
-        # RelatedManager u otras
-        # relaciones múltiples.
-        if (
-            hasattr(
-                valor,
-                "all",
-            )
-            and not hasattr(
-                valor,
-                "pk",
-            )
+        # Relaciones FK:
+        # mostramos representación humana.
+        if getattr(
+            field,
+            "is_relation",
+            False,
         ):
-            continue
-
-        valor = (
-            _valor_legible(
-                valor
+            resultado[
+                nombre
+            ] = (
+                str(valor)
+                if valor is not None
+                else None
             )
-        )
 
-        if valor is None:
             continue
 
-        datos[
-            campo
-        ] = valor
+        # FileField/ImageField
+        if hasattr(
+            valor,
+            "name",
+        ):
+            resultado[
+                nombre
+            ] = (
+                valor.name
+                if valor
+                else None
+            )
 
-    return datos
+            continue
 
-
-def formatear_listado(
-    tema,
-    objetos,
-    total=None,
-):
-    datos = [
-        serializar_objeto(
-            tema,
-            objeto,
+        resultado[
+            nombre
+        ] = _valor_serializable(
+            valor
         )
-        for objeto
-        in objetos
-    ]
 
-    return {
-        "tipo":
-            "listado",
-
-        "tema":
-            tema,
-
-        "total": (
-            total
-            if total is not None
-            else len(datos)
-        ),
-
-        "resultados":
-            datos,
-    }
+    return resultado
 
 
-def formatear_conteo(
-    tema,
-    total,
+# ============================================================
+# RESULTADOS TRANSMITTAL
+# ============================================================
+
+def _formatear_transmittal(
+    resultado_motor,
 ):
+    especial = resultado_motor.get(
+        "resultado_especial"
+    ) or {}
+
+    accion = especial.get(
+        "accion"
+    )
+
+    if accion == "contar":
+
+        return {
+            "tipo":
+                "conteo_items_transmittal",
+
+            "tema":
+                "transmittal_items",
+
+            "concepto":
+                especial.get(
+                    "concepto"
+                ),
+
+            "transmittals":
+                especial.get(
+                    "total_transmittals",
+                    0,
+                ),
+
+            "transmittals_con_items":
+                especial.get(
+                    "transmittals_con_items",
+                    0,
+                ),
+
+            "transmittals_sin_items":
+                especial.get(
+                    "transmittals_sin_items",
+                    0,
+                ),
+
+            "total":
+                especial.get(
+                    "total",
+                    0,
+                ),
+        }
+
+    if accion == "buscar_origen":
+
+        return {
+            "tipo":
+                "origen_archivo_transmittal",
+
+            "archivo_buscado":
+                especial.get(
+                    "archivo_buscado"
+                ),
+
+            "total":
+                especial.get(
+                    "total",
+                    0,
+                ),
+
+            "resultados":
+                especial.get(
+                    "resultados",
+                    [],
+                ),
+        }
+
+    # listar / detalle_transmittal
+
     return {
         "tipo":
-            "conteo",
+            "listado_items_transmittal",
 
-        "tema":
-            tema,
+        "concepto":
+            especial.get(
+                "concepto"
+            ),
+
+        "transmittal":
+            especial.get(
+                "identificador_transmittal"
+            ),
+
+        "transmittals":
+            especial.get(
+                "total_transmittals",
+                0,
+            ),
 
         "total":
-            total,
+            especial.get(
+                "total",
+                0,
+            ),
+
+        "resultados":
+            especial.get(
+                "resultados",
+                [],
+            ),
     }
 
+
+# ============================================================
+# FORMATEADOR GENERAL
+# ============================================================
 
 def formatear_resultado_motor(
     resultado_motor,
 ):
-    operacion = (
-        resultado_motor.get(
-            "operacion"
+    if not isinstance(
+        resultado_motor,
+        dict,
+    ):
+        raise ErrorFormateadorResultado(
+            "El resultado del motor debe ser "
+            "un diccionario."
         )
+
+    # ========================================================
+    # NUEVA FAMILIA: ITEMS DE TRANSMITTAL
+    # ========================================================
+
+    if (
+        resultado_motor.get(
+            "tipo_resultado"
+        )
+        == "transmittal_items"
+    ):
+        return _formatear_transmittal(
+            resultado_motor
+        )
+
+    # ========================================================
+    # FLUJO NORMAL EXISTENTE
+    # ========================================================
+
+    tema = resultado_motor.get(
+        "tema"
     )
 
-    tema = (
-        resultado_motor.get(
-            "tema"
-        )
+    operacion = resultado_motor.get(
+        "operacion"
     )
 
-    total = (
-        resultado_motor.get(
-            "total",
-            0,
-        )
+    total = resultado_motor.get(
+        "total",
+        0,
     )
+
+    objetos = resultado_motor.get(
+        "objetos"
+    ) or []
 
     if operacion == "contar":
 
-        return formatear_conteo(
-            tema,
-            total,
-        )
+        return {
+            "tipo":
+                "conteo",
+
+            "tema":
+                tema,
+
+            "total":
+                total,
+        }
 
     if operacion == "listar":
 
-        return formatear_listado(
-            tema,
-            resultado_motor.get(
-                "objetos",
-                [],
-            ),
-            total=total,
-        )
+        resultados = [
+            _serializar_objeto_django(
+                objeto
+            )
+            for objeto in objetos
+        ]
+
+        return {
+            "tipo":
+                "listado",
+
+            "tema":
+                tema,
+
+            "total":
+                total,
+
+            "resultados":
+                resultados,
+        }
 
     raise ErrorFormateadorResultado(
-        f"Operación no soportada: "
+        f"Operación no reconocida: "
         f"{operacion}"
     )
