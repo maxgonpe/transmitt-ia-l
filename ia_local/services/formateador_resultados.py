@@ -244,6 +244,225 @@ def _formatear_transmittal(
 
 
 # ============================================================
+# RESULTADOS PLANOS
+# ============================================================
+
+def _formatear_planos(
+    resultado_motor,
+):
+    especial = resultado_motor.get(
+        "resultado_especial"
+    ) or {}
+
+    concepto = especial.get(
+        "concepto"
+    )
+
+    accion = especial.get(
+        "accion"
+    )
+
+    # ========================================================
+    # PLANO CONCRETO
+    # ========================================================
+
+    if concepto == "codigo_plano":
+
+        analisis = especial.get(
+            "analisis_plano"
+        )
+
+        if not analisis:
+
+            return {
+                "tipo":
+                    "detalle_plano",
+
+                "tema":
+                    "planos",
+
+                "codigo":
+                    especial.get(
+                        "codigo"
+                    ),
+
+                "encontrado":
+                    False,
+
+                "total":
+                    0,
+            }
+
+        return {
+            "tipo":
+                "detalle_plano",
+
+            "tema":
+                "planos",
+
+            "codigo":
+                analisis.get(
+                    "codigo"
+                ),
+
+            "encontrado":
+                True,
+
+            "revision_actual":
+                analisis.get(
+                    "revision_actual"
+                ),
+
+            "version_actual":
+                analisis.get(
+                    "version_actual"
+                ),
+
+            "descripcion":
+                analisis.get(
+                    "description"
+                ),
+
+            "archivo_principal":
+                analisis.get(
+                    "principal_name"
+                ),
+
+            "folder_path":
+                analisis.get(
+                    "folder_path"
+                ),
+
+            "review_mark":
+                analisis.get(
+                    "review_mark"
+                ),
+
+            "sdi":
+                analisis.get(
+                    "sdi"
+                ),
+
+            "incidence":
+                analisis.get(
+                    "incidence"
+                ),
+
+            "tiene_pdf":
+                analisis.get(
+                    "tiene_pdf",
+                    False,
+                ),
+
+            "tiene_dwg":
+                analisis.get(
+                    "tiene_dwg",
+                    False,
+                ),
+
+            "tiene_red_line":
+                analisis.get(
+                    "tiene_red_line",
+                    False,
+                ),
+
+            "tiene_referencial":
+                analisis.get(
+                    "tiene_referencial",
+                    False,
+                ),
+
+            "tiene_anulado":
+                analisis.get(
+                    "tiene_anulado",
+                    False,
+                ),
+
+            "total_registros":
+                analisis.get(
+                    "total_registros",
+                    0,
+                ),
+
+            "archivos":
+                analisis.get(
+                    "archivos",
+                    [],
+                ),
+        }
+
+    # ========================================================
+    # CONTEO PLANOS POR COLO
+    # ========================================================
+
+    if accion == "contar":
+
+        return {
+            "tipo":
+                "conteo_planos",
+
+            "tema":
+                "planos",
+
+            "concepto":
+                concepto,
+
+            "colos":
+                especial.get(
+                    "colos",
+                    [],
+                ),
+
+            "total":
+                especial.get(
+                    "total",
+                    0,
+                ),
+        }
+
+    # ========================================================
+    # LISTADO PLANOS POR COLO
+    # ========================================================
+
+    objetos = resultado_motor.get(
+        "objetos"
+    ) or []
+
+    resultados = [
+        _serializar_objeto_django(
+            objeto
+        )
+        for objeto in objetos
+    ]
+
+    return {
+        "tipo":
+            "listado_planos",
+
+        "tema":
+            "planos",
+
+        "concepto":
+            concepto,
+
+        "colos":
+            especial.get(
+                "colos",
+                [],
+            ),
+
+        "total":
+            especial.get(
+                "total",
+                0,
+            ),
+
+        "resultados":
+            resultados,
+    }
+
+
+# ============================================================
 # FORMATEADOR GENERAL
 # ============================================================
 
@@ -260,7 +479,7 @@ def formatear_resultado_motor(
         )
 
     # ========================================================
-    # NUEVA FAMILIA: ITEMS DE TRANSMITTAL
+    # FAMILIA: ITEMS DE TRANSMITTAL
     # ========================================================
 
     if (
@@ -270,6 +489,20 @@ def formatear_resultado_motor(
         == "transmittal_items"
     ):
         return _formatear_transmittal(
+            resultado_motor
+        )
+
+    # ========================================================
+    # FAMILIA: PLANOS
+    # ========================================================
+
+    if (
+        resultado_motor.get(
+            "tipo_resultado"
+        )
+        == "planos"
+    ):
+        return _formatear_planos(
             resultado_motor
         )
 

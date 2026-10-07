@@ -19,6 +19,11 @@ from ia_local.services.consultas_transmittal import (
     ejecutar_consulta_transmittal,
 )
 
+from ia_local.services.consultas_planos import (
+    detectar_consulta_planos,
+    ejecutar_consulta_planos,
+)
+
 
 class ErrorMotorGenerico(ValueError):
     pass
@@ -334,6 +339,196 @@ def ejecutar_pregunta(
             "resultado_especial":
                 resultado_especial,
         }
+
+
+
+        # ========================================================
+    # 0.5 FAMILIA PLANOS
+    # ========================================================
+
+    if detectar_consulta_planos(
+        pregunta
+    ):
+
+        resultado_especial = (
+            ejecutar_consulta_planos(
+                pregunta,
+                limite=limite,
+            )
+        )
+
+        operacion = (
+            resultado_especial[
+                "accion"
+            ]
+        )
+
+        concepto = (
+            resultado_especial.get(
+                "concepto"
+            )
+        )
+
+        # ====================================================
+        # FILTROS SEMÁNTICOS VISIBLES
+        # ====================================================
+        #
+        # Importante:
+        #
+        # No todos los filtros de MOTOR_PLANOS son campos ORM.
+        #
+        # Ejemplos:
+        #
+        #   colo
+        #   codigo_plano
+        #
+        # Son conceptos semánticos que el motor especializado
+        # transforma internamente.
+        # ====================================================
+
+        if concepto == "codigo_plano":
+
+            codigo = (
+                resultado_especial.get(
+                    "codigo"
+                )
+            )
+
+            filtros_intencion = {
+                "codigo_plano":
+                    codigo,
+            }
+
+            filtros_diagnostico = {
+                "concepto":
+                    "codigo_plano",
+
+                "codigo_plano":
+                    codigo,
+            }
+
+        elif concepto == "colo":
+
+            colos = (
+                resultado_especial.get(
+                    "colos"
+                )
+                or []
+            )
+
+            filtros_intencion = {
+                "colo":
+                    colos,
+            }
+
+            filtros_diagnostico = {
+                "concepto":
+                    "colo",
+
+                "colo":
+                    colos,
+
+                "campos":
+                    [
+                        "name",
+                        "description",
+                    ],
+            }
+
+        else:
+
+            filtros_intencion = (
+                resultado_especial.get(
+                    "filtros_semanticos"
+                )
+                or {}
+            )
+
+            filtros_diagnostico = {
+                "concepto":
+                    concepto,
+
+                **filtros_intencion,
+            }
+
+        # ====================================================
+        # INTENCIÓN NORMALIZADA
+        # ====================================================
+
+        intencion = {
+            "tema":
+                "planos",
+
+            "operacion":
+                operacion,
+
+            "filtros":
+                filtros_intencion,
+
+            "cantidad":
+                "todos",
+
+            "orden":
+                "ninguno",
+        }
+
+        # ====================================================
+        # RESPUESTA MOTOR
+        # ====================================================
+
+        return {
+            "pregunta":
+                pregunta,
+
+            "origen":
+                "MOTOR_PLANOS",
+
+            "intencion_raw":
+                intencion,
+
+            "intencion":
+                intencion,
+
+            "tema":
+                "planos",
+
+            "modelo":
+                "rdi.PlanosRecord",
+
+            "operacion":
+                operacion,
+
+            "cantidad":
+                "todos",
+
+            "orden":
+                "ninguno",
+
+            "filtros_orm":
+                filtros_diagnostico,
+
+            "total":
+                resultado_especial.get(
+                    "total",
+                    0,
+                ),
+
+            "limite":
+                limite,
+
+            "objetos":
+                resultado_especial.get(
+                    "objetos"
+                )
+                or [],
+
+            "tipo_resultado":
+                "planos",
+
+            "resultado_especial":
+                resultado_especial,
+        }
+
 
     # ========================================================
     # 1. MEMORIA / QWEN

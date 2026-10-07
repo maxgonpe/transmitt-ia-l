@@ -50,14 +50,55 @@ class PlanosRecordAdmin(admin.ModelAdmin):
         "name",
         "version",
         "folder_path",
-        "last_update_at",
+        "last_update_short",
         "updated_by",
         "revision",
-        "last_snapshot_datetime",
+        "review_mark",
+        "sdi",
+        "incidence",
+        "last_snapshot_short",
     )
-    list_filter = ("version",)
-    search_fields = ("name", "folder_path", "title", "description", "revision")
-    ordering = ("name", "folder_path")
+
+    list_filter = (
+        "version",
+        "review_mark",
+        "sdi",
+        "incidence",
+    )
+
+    search_fields = (
+        "name",
+        "folder_path",
+        "title",
+        "description",
+        "revision",
+        "review_mark",
+        "sdi",
+        "incidence",
+    )
+
+    ordering = (
+        "name",
+        "folder_path",
+    )
+
+    @admin.display(
+        description="Última actualización",
+        ordering="last_update_at",
+    )
+    def last_update_short(self, obj):
+        if not obj.last_update_at:
+            return "-"
+        return obj.last_update_at.strftime("%d-%m-%Y %H:%M")
+
+    @admin.display(
+        description="Último snapshot",
+        ordering="last_snapshot_datetime",
+    )
+    def last_snapshot_short(self, obj):
+        if not obj.last_snapshot_datetime:
+            return "-"
+        return obj.last_snapshot_datetime.strftime("%d-%m-%Y %H:%M")
 
 
 @admin.register(PlanosInicialesImport)
