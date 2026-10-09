@@ -10,7 +10,7 @@ from django.conf import settings
 
 
 CODIGO_MAX_LINEAS_BLOQUE = 100
-CODIGO_MAX_BLOQUES_QWEN = 5
+CODIGO_MAX_BLOQUES_QWEN = 6
 CODIGO_LINEAS_CABECERA_BLOQUE_GRANDE = 55
 CODIGO_LINEAS_COLA_BLOQUE_GRANDE = 25
 
@@ -482,13 +482,117 @@ def _score_bloque(
     return score
 
 
-def _seleccionar_representativos(
+def _score_estructura(
+    bloque: dict[str, Any],
+) -> int:
+    """
+    Puntúa la importancia estructural de un bloque.
+
+    La idea no es muestrear la función por posición, sino conservar
+    las ramas y operaciones que mejor explican su comportamiento.
+    """
+
+    tipo = (
+        bloque.get(
+            "tipo"
+        )
+        or ""
+    )
+
+    lineas = (
+        bloque.get(
+            "lineas_total"
+        )
+        or 0
+    )
+
+    referencias = (
+        bloque.get(
+            "referencias"
+        )
+        or []
+    )
+
+    score = 0
+
+    # Ramas de decisión principales.
+    if tipo == "if":
+        score += 120
+
+    elif tipo == "match":
+        score += 115
+
+    # Iteraciones suelen representar procesamiento real.
+    elif tipo == "for":
+        score += 95
+
+    elif tipo == "while":
+        score += 85
+
+    # Manejo de excepciones / recursos.
+    elif tipo == "try":
+        score += 80
+
+    elif tipo == "with":
+        score += 70
+
+    # El return final ayuda a entender el contrato de salida.
+    elif tipo == "return":
+        score += 100
+
+    # Asignaciones con llamadas tienen valor, pero una
+    # asignación trivial por sí sola no debe desplazar una rama.
+    elif tipo == "assign":
+        score += 15
+
+    elif tipo == "raise":
+        score += 45
+
+    else:
+        score += 10
+
+    # Bloques de cierto tamaño suelen encapsular una porción
+    # significativa del flujo.
+    if lineas >= 15:
+        score += 20
+
+    if lineas >= 40:
+        score += 25
+
+    if lineas >= 80:
+        score += 20
+
+    # Llamadas a otras funciones/models aportan semántica.
+    score += min(
+        len(
+            referencias
+        ),
+        12,
+    ) * 6
+
+    # Reducimos asignaciones triviales de 1-2 líneas.
+    if (
+        tipo == "assign"
+        and lineas <= 2
+        and not referencias
+    ):
+        score -= 25
+
+    return score
+
+
+def _seleccionar_estructurales(
     bloques: list[dict[str, Any]],
     max_bloques: int,
 ) -> list[int]:
     """
-    Para preguntas generales ("qué hace X") toma una muestra
-    distribuida por toda la función: inicio, centro y final.
+    Selección para preguntas generales como "qué hace X".
+
+    Garantiza:
+    - contexto inicial;
+    - una o más ramas principales;
+    - procesamiento relevante;
+    - contrato/return final.
     """
 
     n = len(
@@ -502,56 +606,170 @@ def _seleccionar_representativos(
             )
         )
 
-    if max_bloques <= 1:
-        return [
+    seleccion: list[int] = []
+
+    # 1. Contexto inicial: el primer bloque casi siempre explica
+    #    cómo comienza la función.
+    if n:
+        seleccion.append(
             0
+        )
+
+    # 2. Return final: contrato de salida.
+    returns = [
+        idx
+        for idx, bloque
+        in enumerate(
+            bloques
+        )
+        if bloque.get(
+            "tipo"
+        ) == "return"
+    ]
+
+    if returns:
+
+        ultimo_return = returns[
+            -1
         ]
 
-    posiciones = {
-        0,
-        n - 1,
-    }
-
-    if max_bloques >= 3:
-        posiciones.add(
-            n // 2
-        )
-
-    if max_bloques >= 4:
-        posiciones.add(
-            n // 3
-        )
-
-    if max_bloques >= 5:
-        posiciones.add(
-            (2 * n) // 3
-        )
-
-    posiciones = sorted(
-        posiciones
-    )
-
-    # Completar si por redondeo faltan posiciones.
-    candidato = 1
-
-    while (
-        len(
-            posiciones
-        )
-        < max_bloques
-        and candidato
-        < n - 1
-    ):
-
-        if candidato not in posiciones:
-            posiciones.append(
-                candidato
+        if ultimo_return not in seleccion:
+            seleccion.append(
+                ultimo_return
             )
 
-        candidato += 1
+    # 3. Ramas/iteraciones/try por importancia estructural.
+    candidatos = sorted(
+        range(
+            n
+        ),
+        key=lambda idx: (
+            -_score_estructura(
+                bloques[
+                    idx
+                ]
+            ),
+            idx,
+        ),
+    )
+
+    for idx in candidatos:
+
+        if (
+            len(
+                seleccion
+            )
+            >= max_bloques
+        ):
+            break
+
+        if idx not in seleccion:
+            seleccion.append(
+                idx
+            )
 
     return sorted(
-        posiciones[
+        seleccion[
+            :max_bloques
+        ]
+    )
+
+
+def _seleccionar_por_pregunta_y_estructura(
+    bloques: list[dict[str, Any]],
+    max_bloques: int,
+) -> list[int]:
+    """
+    Para preguntas específicas combina relevancia léxica
+    con importancia estructural.
+    """
+
+    n = len(
+        bloques
+    )
+
+    if n <= max_bloques:
+        return list(
+            range(
+                n
+            )
+        )
+
+    orden = sorted(
+        range(
+            n
+        ),
+        key=lambda idx: (
+            -(
+                (
+                    bloques[idx].get(
+                        "score_pregunta"
+                    )
+                    or 0
+                )
+                * 10
+                + _score_estructura(
+                    bloques[
+                        idx
+                    ]
+                )
+            ),
+            idx,
+        ),
+    )
+
+    seleccion = []
+
+    for idx in orden:
+
+        if (
+            len(
+                seleccion
+            )
+            >= max_bloques
+        ):
+            break
+
+        # Si hay coincidencia con la pregunta o el bloque
+        # es estructuralmente importante, lo conservamos.
+        if (
+            (
+                bloques[idx].get(
+                    "score_pregunta"
+                )
+                or 0
+            ) > 0
+            or _score_estructura(
+                bloques[
+                    idx
+                ]
+            ) >= 80
+        ):
+            seleccion.append(
+                idx
+            )
+
+    # Siempre conservar inicio y return final si hay espacio.
+    for idx in _seleccionar_estructurales(
+        bloques,
+        max_bloques,
+    ):
+
+        if (
+            len(
+                seleccion
+            )
+            >= max_bloques
+        ):
+            break
+
+        if idx not in seleccion:
+            seleccion.append(
+                idx
+            )
+
+    return sorted(
+        seleccion[
             :max_bloques
         ]
     )
@@ -662,54 +880,17 @@ def segmentar_simbolo(
 
     if tokens:
 
-        orden_score = sorted(
-            range(
-                len(
-                    bloques
-                )
-            ),
-            key=lambda idx: (
-                -bloques[idx][
-                    "score_pregunta"
-                ],
-                idx,
-            ),
+        seleccion = (
+            _seleccionar_por_pregunta_y_estructura(
+                bloques,
+                max_bloques,
+            )
         )
-
-        seleccion = [
-            idx
-            for idx in orden_score
-            if bloques[idx][
-                "score_pregunta"
-            ] > 0
-        ][
-            :max_bloques
-        ]
-
-        # Si la pregunta específica no cubre suficientes bloques,
-        # completamos con una muestra del flujo completo.
-        for idx in _seleccionar_representativos(
-            bloques,
-            max_bloques,
-        ):
-
-            if (
-                len(
-                    seleccion
-                )
-                >= max_bloques
-            ):
-                break
-
-            if idx not in seleccion:
-                seleccion.append(
-                    idx
-                )
 
     else:
 
         seleccion = (
-            _seleccionar_representativos(
+            _seleccionar_estructurales(
                 bloques,
                 max_bloques,
             )

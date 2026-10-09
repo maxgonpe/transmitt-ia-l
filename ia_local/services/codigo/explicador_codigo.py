@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any
 
@@ -273,6 +274,24 @@ def explicar_codigo(
     )
 
     provider = OllamaProvider()
+
+    # Las explicaciones de código pueden transportar más contexto
+    # que una intención semántica normal. Además, la primera
+    # consulta web puede encontrar el modelo frío.
+    #
+    # Este timeout afecta solo a QWEN_CODIGO; no cambia el timeout
+    # global de los demás motores.
+    timeout_codigo = int(
+        os.environ.get(
+            "OLLAMA_CODIGO_TIMEOUT",
+            "180",
+        )
+    )
+
+    provider.timeout = max(
+        provider.timeout,
+        timeout_codigo,
+    )
 
     try:
 
