@@ -5,7 +5,11 @@ from pathlib import Path
 from typing import Any
 
 
-MAX_LINEAS_FRAGMENTO = 120
+# Símbolos de hasta este tamaño pueden viajar completos
+# en el índice. Los símbolos mayores quedan con una vista previa
+# y serán reconstruidos/segmentados bajo demanda.
+CODIGO_MAX_LINEAS_SIMBOLO_COMPLETO = 160
+CODIGO_MAX_LINEAS_PREVIEW_LARGO = 80
 
 
 def _nombre_decorador(
@@ -68,7 +72,15 @@ def _fragmento_fuente(
     lineas: list[str],
     inicio: int,
     fin: int,
-) -> str:
+) -> tuple[str, bool]:
+    """
+    Devuelve código completo para símbolos pequeños/medianos.
+
+    Para símbolos largos conserva una vista previa. La versión
+    completa no se pierde: segmentador_codigo.py la recupera
+    directamente desde el archivo fuente cuando hace falta.
+    """
+
     inicio_idx = max(
         inicio - 1,
         0,
@@ -83,23 +95,117 @@ def _fragmento_fuente(
         inicio_idx:fin_idx
     ]
 
-    if len(
-        fragmento
-    ) > MAX_LINEAS_FRAGMENTO:
-
-        fragmento = (
-            fragmento[
-                :MAX_LINEAS_FRAGMENTO
-            ]
-        )
-
-        fragmento.append(
-            "# ... fragmento truncado por MOTOR_CODIGO ...\n"
-        )
-
-    return "".join(
+    total = len(
         fragmento
     )
+
+    if (
+        total
+        <= CODIGO_MAX_LINEAS_SIMBOLO_COMPLETO
+    ):
+        return (
+            "".join(
+                fragmento
+            ),
+            False,
+        )
+
+    preview = (
+        fragmento[
+            :CODIGO_MAX_LINEAS_PREVIEW_LARGO
+        ]
+    )
+
+    preview.append(
+        "# ... símbolo largo: MOTOR_CODIGO V3 usará segmentación AST ...\n"
+    )
+
+    return (
+        "".join(
+            preview
+        ),
+        True,
+    )
+
+
+def _construir_simbolo(
+    *,
+    tipo: str,
+    nombre: str,
+    qualname: str,
+    nodo: ast.AST,
+    lineas: list[str],
+    decoradores: list[str],
+    bases: list[str],
+) -> dict[str, Any]:
+
+    inicio = getattr(
+        nodo,
+        "lineno",
+        0,
+    )
+
+    fin = getattr(
+        nodo,
+        "end_lineno",
+        inicio,
+    )
+
+    codigo, truncado = (
+        _fragmento_fuente(
+            lineas,
+            inicio,
+            fin,
+        )
+    )
+
+    return {
+        "tipo":
+            tipo,
+
+        "nombre":
+            nombre,
+
+        "qualname":
+            qualname,
+
+        "linea_inicio":
+            inicio,
+
+        "linea_fin":
+            fin,
+
+        "lineas_total":
+            max(
+                fin - inicio + 1,
+                0,
+            ),
+
+        "codigo_truncado":
+            truncado,
+
+        "docstring":
+            (
+                ast.get_docstring(
+                    nodo
+                )
+                or ""
+            ),
+
+        "decoradores":
+            decoradores,
+
+        "bases":
+            bases,
+
+        "referencias":
+            _referencias_en_nodo(
+                nodo
+            ),
+
+        "codigo":
+            codigo,
+    }
 
 
 def analizar_archivo_python(
@@ -107,7 +213,7 @@ def analizar_archivo_python(
     raiz: Path,
 ) -> dict[str, Any]:
     """
-    Analiza un archivo .py mediante ast.
+    Analiza un archivo .py mediante AST.
 
     El archivo se lee como texto y se parsea.
     Nunca se importa ni se ejecuta.
@@ -195,61 +301,22 @@ def analizar_archivo_python(
             ),
         ):
 
-            fin = getattr(
-                nodo,
-                "end_lineno",
-                nodo.lineno,
-            )
-
             simbolos.append(
-                {
-                    "tipo":
-                        "funcion",
-
-                    "nombre":
-                        nodo.name,
-
-                    "qualname":
-                        nodo.name,
-
-                    "linea_inicio":
-                        nodo.lineno,
-
-                    "linea_fin":
-                        fin,
-
-                    "docstring":
-                        (
-                            ast.get_docstring(
-                                nodo
-                            )
-                            or ""
-                        ),
-
-                    "decoradores":
-                        [
-                            _nombre_decorador(
-                                x
-                            )
-                            for x
-                            in nodo.decorator_list
-                        ],
-
-                    "bases":
-                        [],
-
-                    "referencias":
-                        _referencias_en_nodo(
-                            nodo
-                        ),
-
-                    "codigo":
-                        _fragmento_fuente(
-                            lineas,
-                            nodo.lineno,
-                            fin,
-                        ),
-                }
+                _construir_simbolo(
+                    tipo="funcion",
+                    nombre=nodo.name,
+                    qualname=nodo.name,
+                    nodo=nodo,
+                    lineas=lineas,
+                    decoradores=[
+                        _nombre_decorador(
+                            x
+                        )
+                        for x
+                        in nodo.decorator_list
+                    ],
+                    bases=[],
+                )
             )
 
         elif isinstance(
@@ -257,72 +324,31 @@ def analizar_archivo_python(
             ast.ClassDef,
         ):
 
-            fin = getattr(
-                nodo,
-                "end_lineno",
-                nodo.lineno,
-            )
-
             simbolos.append(
-                {
-                    "tipo":
-                        "clase",
-
-                    "nombre":
-                        nodo.name,
-
-                    "qualname":
-                        nodo.name,
-
-                    "linea_inicio":
-                        nodo.lineno,
-
-                    "linea_fin":
-                        fin,
-
-                    "docstring":
-                        (
-                            ast.get_docstring(
-                                nodo
-                            )
-                            or ""
-                        ),
-
-                    "decoradores":
-                        [
-                            _nombre_decorador(
-                                x
-                            )
-                            for x
-                            in nodo.decorator_list
-                        ],
-
-                    "bases":
-                        [
-                            _nombre_base(
-                                x
-                            )
-                            for x
-                            in nodo.bases
-                        ],
-
-                    "referencias":
-                        _referencias_en_nodo(
-                            nodo
-                        ),
-
-                    "codigo":
-                        _fragmento_fuente(
-                            lineas,
-                            nodo.lineno,
-                            fin,
-                        ),
-                }
+                _construir_simbolo(
+                    tipo="clase",
+                    nombre=nodo.name,
+                    qualname=nodo.name,
+                    nodo=nodo,
+                    lineas=lineas,
+                    decoradores=[
+                        _nombre_decorador(
+                            x
+                        )
+                        for x
+                        in nodo.decorator_list
+                    ],
+                    bases=[
+                        _nombre_base(
+                            x
+                        )
+                        for x
+                        in nodo.bases
+                    ],
+                )
             )
 
-            # Los métodos se indexan también como símbolos
-            # independientes para permitir preguntas como:
-            # "dónde está save de PlanosRecord".
+            # Métodos como símbolos independientes.
             for hijo in nodo.body:
 
                 if not isinstance(
@@ -334,64 +360,25 @@ def analizar_archivo_python(
                 ):
                     continue
 
-                fin_hijo = getattr(
-                    hijo,
-                    "end_lineno",
-                    hijo.lineno,
-                )
-
                 simbolos.append(
-                    {
-                        "tipo":
-                            "metodo",
-
-                        "nombre":
-                            hijo.name,
-
-                        "qualname":
-                            (
-                                f"{nodo.name}."
-                                f"{hijo.name}"
-                            ),
-
-                        "linea_inicio":
-                            hijo.lineno,
-
-                        "linea_fin":
-                            fin_hijo,
-
-                        "docstring":
-                            (
-                                ast.get_docstring(
-                                    hijo
-                                )
-                                or ""
-                            ),
-
-                        "decoradores":
-                            [
-                                _nombre_decorador(
-                                    x
-                                )
-                                for x
-                                in hijo.decorator_list
-                            ],
-
-                        "bases":
-                            [],
-
-                        "referencias":
-                            _referencias_en_nodo(
-                                hijo
-                            ),
-
-                        "codigo":
-                            _fragmento_fuente(
-                                lineas,
-                                hijo.lineno,
-                                fin_hijo,
-                            ),
-                    }
+                    _construir_simbolo(
+                        tipo="metodo",
+                        nombre=hijo.name,
+                        qualname=(
+                            f"{nodo.name}."
+                            f"{hijo.name}"
+                        ),
+                        nodo=hijo,
+                        lineas=lineas,
+                        decoradores=[
+                            _nombre_decorador(
+                                x
+                            )
+                            for x
+                            in hijo.decorator_list
+                        ],
+                        bases=[],
+                    )
                 )
 
     return {

@@ -18,6 +18,10 @@ from .explicador_codigo import (
     explicar_codigo,
 )
 
+from .selector_contexto import (
+    construir_contexto_simbolo,
+)
+
 
 # ============================================================
 # NORMALIZACIÓN
@@ -58,9 +62,8 @@ def detectar_consulta_codigo(
     """
     Detector conservador.
 
-    MOTOR_CODIGO solo debe interceptar cuando la pregunta
-    contiene señales claras de que el usuario pregunta por
-    implementación, estructura o flujo del código.
+    MOTOR_CODIGO solo intercepta preguntas con señales claras
+    de implementación, estructura o flujo del código.
     """
 
     texto = _normalizar(
@@ -148,6 +151,17 @@ def _resumen_simbolo(
                 "linea_fin"
             ),
 
+        "lineas_total":
+            item.get(
+                "lineas_total"
+            ),
+
+        "codigo_truncado":
+            item.get(
+                "codigo_truncado",
+                False,
+            ),
+
         "docstring":
             item.get(
                 "docstring"
@@ -184,10 +198,10 @@ def construir_contexto_para_qwen(
     resultado: dict[str, Any],
 ) -> str:
     """
-    Convierte la evidencia recuperada en un bloque acotado.
+    Evidencia adaptativa:
 
-    Esta función NO llama a Qwen.
-    Solo prepara evidencia real para una etapa posterior.
+    - El símbolo principal recibe contexto completo o segmentación AST.
+    - Los símbolos secundarios se conservan como apoyo compacto.
     """
 
     lineas = [
@@ -203,62 +217,41 @@ def construir_contexto_para_qwen(
             "No inventes archivos, funciones, modelos, URLs "
             "ni reglas de negocio que no estén en la evidencia."
         ),
+        (
+            "Cuando MODO_CONTEXTO sea segmentado_ast, interpreta "
+            "los bloques como partes seleccionadas de una función "
+            "más larga; no asumas que los bloques omitidos hacen "
+            "algo que no esté respaldado por la evidencia."
+        ),
         "",
         "EVIDENCIA DEL PROYECTO:",
     ]
 
-    for item in resultado.get(
-        "simbolos",
-        [],
-    )[:5]:
+    simbolos = (
+        resultado.get(
+            "simbolos"
+        )
+        or []
+    )
 
-        lineas.extend(
-            [
-                "",
-                (
-                    "ARCHIVO: "
-                    f"{item.get('archivo')}"
-                ),
-                (
-                    "SIMBOLO: "
-                    f"{item.get('qualname')}"
-                ),
-                (
-                    "TIPO: "
-                    f"{item.get('tipo')}"
-                ),
-                (
-                    "LINEAS: "
-                    f"{item.get('linea_inicio')}"
-                    "-"
-                    f"{item.get('linea_fin')}"
-                ),
-            ]
+    for indice, item in enumerate(
+        simbolos[
+            :5
+        ]
+    ):
+
+        lineas.append(
+            ""
         )
 
-        if item.get(
-            "docstring"
-        ):
-
-            lineas.append(
-                (
-                    "DOCSTRING: "
-                    + item[
-                        "docstring"
-                    ]
-                )
-            )
-
         lineas.extend(
-            [
-                "CODIGO:",
-                (
-                    item.get(
-                        "codigo"
-                    )
-                    or ""
+            construir_contexto_simbolo(
+                pregunta,
+                item,
+                principal=(
+                    indice == 0
                 ),
-            ]
+            )
         )
 
     if resultado.get(
