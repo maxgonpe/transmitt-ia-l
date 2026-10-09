@@ -118,6 +118,32 @@ def _ejecutar_consulta_ia(
             ),
     }
 
+    # MOTOR_CODIGO puede entregar una explicación natural
+    # construida por Qwen a partir de evidencia real del proyecto.
+    #
+    # Los demás motores conservan por ahora su representación
+    # estructurada habitual.
+    respuesta_texto = None
+
+    if isinstance(
+        respuesta_estructurada,
+        dict,
+    ):
+        respuesta_texto = (
+            respuesta_estructurada.get(
+                "respuesta_texto"
+            )
+        )
+
+    if not respuesta_texto:
+
+        respuesta_texto = json.dumps(
+            respuesta_estructurada,
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        )
+
     return {
         "motor":
             resultado_motor,
@@ -129,12 +155,7 @@ def _ejecutar_consulta_ia(
             respuesta_estructurada,
 
         "respuesta_texto":
-            json.dumps(
-                respuesta_estructurada,
-                ensure_ascii=False,
-                indent=2,
-                default=str,
-            ),
+            respuesta_texto,
     }
 
 

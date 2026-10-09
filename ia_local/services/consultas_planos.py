@@ -2,15 +2,11 @@ import os
 import re
 import unicodedata
 
-from django.db.models import Q
-
 from rdi.models import PlanosRecord
-
 
 # ============================================================
 # NORMALIZACIÓN
 # ============================================================
-
 def _normalizar_texto(texto):
     texto = str(
         texto or ""
@@ -41,7 +37,6 @@ def _normalizar_texto(texto):
 # ============================================================
 # OPERACIÓN
 # ============================================================
-
 def _pregunta_pide_conteo(
     pregunta,
 ):
@@ -69,7 +64,6 @@ def _pregunta_pide_conteo(
 # ============================================================
 # COLO / COLOS
 # ============================================================
-
 def _extraer_colos(
     pregunta,
 ):
@@ -114,10 +108,10 @@ def _extraer_colos(
 
     return resultado
 
+
 # ============================================================
 # CÓDIGO LÓGICO DE PLANO
 # ============================================================
-
 def extraer_codigo_plano(
     nombre,
 ):
@@ -181,7 +175,6 @@ def extraer_codigo_plano(
 # ============================================================
 # EXTENSIÓN
 # ============================================================
-
 def _extraer_extension(
     nombre,
 ):
@@ -206,7 +199,6 @@ def _extraer_extension(
 # ============================================================
 # TIPO DOCUMENTAL / CONTEXTO
 # ============================================================
-
 def _es_red_line(
     registro,
 ):
@@ -228,7 +220,6 @@ def _es_red_line(
         or "RED LINES" in path.upper()
     )
 
-
 def _es_referencial(
     registro,
 ):
@@ -241,7 +232,6 @@ def _es_referencial(
         or "REFERENCIAL" in path
     )
 
-
 def _es_anulado(
     registro,
 ):
@@ -253,7 +243,6 @@ def _es_anulado(
         "ANULADO" in path
         or "ANULADOS" in path
     )
-
 
 def _es_drawings(
     registro,
@@ -270,7 +259,6 @@ def _es_drawings(
 # ============================================================
 # PRIORIDAD DOCUMENTAL
 # ============================================================
-
 def _prioridad_registro(
     registro,
 ):
@@ -310,7 +298,6 @@ def _prioridad_registro(
 # ============================================================
 # REGISTRO OFICIAL PRINCIPAL
 # ============================================================
-
 def seleccionar_registro_oficial(
     registros,
 ):
@@ -363,7 +350,6 @@ def seleccionar_registro_oficial(
 # ============================================================
 # BUSCAR REGISTROS DEL MISMO PLANO
 # ============================================================
-
 def obtener_registros_plano(
     codigo,
 ):
@@ -408,7 +394,6 @@ def obtener_registros_plano(
 # ============================================================
 # RESUMEN LÓGICO
 # ============================================================
-
 def analizar_plano_logico(
     codigo,
 ):
@@ -551,7 +536,6 @@ def analizar_plano_logico(
 # ============================================================
 # DETECTAR CÓDIGO EN LA PREGUNTA
 # ============================================================
-
 def _extraer_codigo_pregunta(
     pregunta,
 ):
@@ -579,51 +563,8 @@ def _extraer_codigo_pregunta(
 
 
 # ============================================================
-# FILTRO COLO
-# ============================================================
-
-def _filtro_colos(
-    colos,
-):
-    consulta = Q()
-
-    for colo in colos:
-
-        singular = (
-            f"COLO {colo}"
-        )
-
-        plural = (
-            f"COLOS {colo}"
-        )
-
-        consulta |= Q(
-            name__icontains=
-                singular
-        )
-
-        consulta |= Q(
-            description__icontains=
-                singular
-        )
-
-        consulta |= Q(
-            name__icontains=
-                plural
-        )
-
-        consulta |= Q(
-            description__icontains=
-                plural
-        )
-
-    return consulta
-
-
-# ============================================================
 # FILTROS DE ATRIBUTOS DEL PLANO
 # ============================================================
-
 def _detectar_revision(
     pregunta,
 ):
@@ -673,7 +614,6 @@ def _detectar_revision(
 
     return valor.upper()
 
-
 def _detectar_sdi(
     pregunta,
 ):
@@ -709,7 +649,6 @@ def _detectar_sdi(
         return False
 
     return True
-
 
 def _detectar_incidencia(
     pregunta,
@@ -748,7 +687,6 @@ def _detectar_incidencia(
         return False
 
     return True
-
 
 def _detectar_review_mark(
     pregunta,
@@ -791,7 +729,6 @@ def _detectar_review_mark(
         return False
 
     return True
-
 
 def _detectar_filtros_atributos(
     pregunta,
@@ -836,23 +773,211 @@ def _detectar_filtros_atributos(
 
     return filtros
 
-# ============================================================
-# APLICAR FILTROS DE ATRIBUTOS
-# ============================================================
 
-def _aplicar_filtros_atributos(
-    queryset,
+# ============================================================
+# PLANOS LÓGICOS
+# ============================================================
+def _agrupar_registros_por_codigo(
+    registros,
+):
+    grupos = {}
+
+    for registro in registros:
+
+        codigo = extraer_codigo_plano(
+            registro.name
+        )
+
+        if not codigo:
+            continue
+
+        grupos.setdefault(
+            codigo,
+            [],
+        ).append(
+            registro
+        )
+
+    return grupos
+
+def _obtener_planos_logicos():
+    """
+    Devuelve todos los planos lógicos.
+
+    PDF, DWG, Red Line, referenciales, etc. quedan agrupados
+    bajo el mismo código de plano.
+
+    Para consultar revisión/estado/vigencia utilizamos como
+    representante el registro oficial seleccionado por
+    seleccionar_registro_oficial().
+    """
+
+    registros = list(
+        PlanosRecord.objects
+        .filter(
+            name__icontains="-PL-"
+        )
+        .order_by(
+            "name",
+            "folder_path",
+        )
+    )
+
+    grupos = (
+        _agrupar_registros_por_codigo(
+            registros
+        )
+    )
+
+    resultado = []
+
+    for codigo in sorted(
+        grupos.keys()
+    ):
+
+        archivos = grupos[
+            codigo
+        ]
+
+        principal = (
+            seleccionar_registro_oficial(
+                archivos
+            )
+        )
+
+        if principal is None:
+            continue
+
+        resultado.append(
+            {
+                "codigo":
+                    codigo,
+
+                "principal":
+                    principal,
+
+                "archivos":
+                    archivos,
+            }
+        )
+
+    return resultado
+
+
+# ============================================================
+# COLO DENTRO DEL PLANO LÓGICO
+# ============================================================
+def _extraer_colos_texto(
+    texto,
+):
+    texto = _normalizar_texto(
+        texto
+    )
+
+    resultado = []
+
+    patron = re.compile(
+        r"\bcolos?\b\s+"
+        r"("
+        r"\d+(?:\.\d+)?"
+        r"(?:"
+        r"\s*(?:,|;|/|-|y|e|\s)\s*"
+        r"\d+(?:\.\d+)?"
+        r")*"
+        r")"
+    )
+
+    for match in patron.finditer(
+        texto
+    ):
+
+        bloque = match.group(
+            1
+        )
+
+        numeros = re.findall(
+            r"\d+(?:\.\d+)?",
+            bloque,
+        )
+
+        for numero in numeros:
+
+            if numero not in resultado:
+                resultado.append(
+                    numero
+                )
+
+    return resultado
+
+def _plano_pertenece_colos(
+    principal,
+    colos_solicitados,
+):
+    if not colos_solicitados:
+        return True
+
+    texto = " ".join(
+        [
+            principal.name or "",
+            principal.description or "",
+        ]
+    )
+
+    colos_documento = (
+        _extraer_colos_texto(
+            texto
+        )
+    )
+
+    return any(
+        colo in colos_documento
+        for colo in colos_solicitados
+    )
+
+
+# ============================================================
+# ATRIBUTOS DEL REGISTRO OFICIAL
+# ============================================================
+def _valor_vacio_o(
+    valor,
+    valores_vacios,
+):
+    texto = str(
+        valor or ""
+    ).strip()
+
+    if not texto:
+        return True
+
+    texto_normalizado = (
+        _normalizar_texto(
+            texto
+        )
+    )
+
+    return texto_normalizado in {
+        _normalizar_texto(x)
+        for x in valores_vacios
+    }
+
+def _plano_cumple_atributos(
+    principal,
     filtros,
 ):
     revision = filtros.get(
         "revision"
     )
 
-    if revision is not None:
-
-        queryset = queryset.filter(
-            revision__iexact=revision
-        )
+    if (
+        revision is not None
+        and str(
+            principal.revision or ""
+        ).strip().upper()
+        != str(
+            revision
+        ).strip().upper()
+    ):
+        return False
 
     # --------------------------------------------------------
     # SDI
@@ -860,42 +985,25 @@ def _aplicar_filtros_atributos(
 
     if "sdi" in filtros:
 
-        tiene_sdi = filtros[
-            "sdi"
-        ]
+        vacio = _valor_vacio_o(
+            principal.sdi,
+            {
+                "No hay SDI",
+                "--",
+            },
+        )
 
-        if tiene_sdi:
+        if (
+            filtros["sdi"]
+            and vacio
+        ):
+            return False
 
-            queryset = (
-                queryset
-                .exclude(
-                    sdi__isnull=True
-                )
-                .exclude(
-                    sdi__exact=""
-                )
-                .exclude(
-                    sdi__iexact=
-                        "No hay SDI"
-                )
-            )
-
-        else:
-
-            queryset = queryset.filter(
-                Q(
-                    sdi__isnull=True
-                )
-                |
-                Q(
-                    sdi__exact=""
-                )
-                |
-                Q(
-                    sdi__iexact=
-                        "No hay SDI"
-                )
-            )
+        if (
+            not filtros["sdi"]
+            and not vacio
+        ):
+            return False
 
     # --------------------------------------------------------
     # INCIDENCIAS
@@ -903,45 +1011,25 @@ def _aplicar_filtros_atributos(
 
     if "incidence" in filtros:
 
-        tiene_incidencia = filtros[
-            "incidence"
-        ]
+        vacio = _valor_vacio_o(
+            principal.incidence,
+            {
+                "Sin incidencias",
+                "--",
+            },
+        )
 
-        if tiene_incidencia:
+        if (
+            filtros["incidence"]
+            and vacio
+        ):
+            return False
 
-            queryset = (
-                queryset
-                .exclude(
-                    incidence__isnull=True
-                )
-                .exclude(
-                    incidence__exact=""
-                )
-                .exclude(
-                    incidence__iexact=
-                        "Sin incidencias"
-                )
-                .exclude(
-                    incidence__exact="--"
-                )
-            )
-
-        else:
-
-            queryset = queryset.filter(
-                Q(
-                    incidence__isnull=True
-                )
-                |
-                Q(
-                    incidence__exact=""
-                )
-                |
-                Q(
-                    incidence__iexact=
-                        "Sin incidencias"
-                )
-            )
+        if (
+            not filtros["incidence"]
+            and not vacio
+        ):
+            return False
 
     # --------------------------------------------------------
     # MARCAS DE REVISIÓN
@@ -949,54 +1037,32 @@ def _aplicar_filtros_atributos(
 
     if "review_mark" in filtros:
 
-        tiene_marca = filtros[
-            "review_mark"
-        ]
+        vacio = _valor_vacio_o(
+            principal.review_mark,
+            {
+                "No hay marcas de revisión",
+                "--",
+            },
+        )
 
-        if tiene_marca:
+        if (
+            filtros["review_mark"]
+            and vacio
+        ):
+            return False
 
-            queryset = (
-                queryset
-                .exclude(
-                    review_mark__isnull=True
-                )
-                .exclude(
-                    review_mark__exact=""
-                )
-                .exclude(
-                    review_mark__iexact=
-                        "No hay marcas de revisión"
-                )
-                .exclude(
-                    review_mark__exact="--"
-                )
-            )
+        if (
+            not filtros["review_mark"]
+            and not vacio
+        ):
+            return False
 
-        else:
-
-            queryset = queryset.filter(
-                Q(
-                    review_mark__isnull=True
-                )
-                |
-                Q(
-                    review_mark__exact=""
-                )
-                |
-                Q(
-                    review_mark__iexact=
-                        "No hay marcas de revisión"
-                )
-            )
-
-    return queryset
-
+    return True
 
 
 # ============================================================
 # DETECTOR
 # ============================================================
-
 def detectar_consulta_planos(
     pregunta,
 ):
@@ -1055,10 +1121,10 @@ def detectar_consulta_planos(
 
     return False
 
+
 # ============================================================
 # EJECUTOR
 # ============================================================
-
 def ejecutar_consulta_planos(
     pregunta,
     limite=20,
@@ -1165,8 +1231,8 @@ def ejecutar_consulta_planos(
                 },
         }
 
-    # ========================================================
-    # 2. CONSULTA GENERAL DE PLANOS
+        # ========================================================
+    # 2. CONSULTA GENERAL DE PLANOS LÓGICOS
     # ========================================================
 
     colos = _extraer_colos(
@@ -1188,60 +1254,151 @@ def ejecutar_consulta_planos(
     )
 
     # ========================================================
-    # BASE:
-    # únicamente documentos cuyo código representa un plano
+    # UNIVERSO LÓGICO
     # ========================================================
 
-    queryset = (
-        PlanosRecord.objects
-        .filter(
-            name__icontains="-PL-"
-        )
+    planos_logicos = (
+        _obtener_planos_logicos()
     )
 
-    # ========================================================
-    # FILTRO COLO
-    # ========================================================
+    filtrados = []
 
-    if colos:
+    for plano in planos_logicos:
 
-        filtro_colos = _filtro_colos(
-            colos
+        principal = plano[
+            "principal"
+        ]
+
+        if not _plano_pertenece_colos(
+            principal,
+            colos,
+        ):
+            continue
+
+        if not _plano_cumple_atributos(
+            principal,
+            filtros_atributos,
+        ):
+            continue
+
+        filtrados.append(
+            plano
         )
 
-        queryset = queryset.filter(
-            filtro_colos
-        )
-
     # ========================================================
-    # FILTROS REALES
+    # TOTAL LÓGICO
     # ========================================================
 
-    queryset = _aplicar_filtros_atributos(
-        queryset,
-        filtros_atributos,
+    total = len(
+        filtrados
     )
 
-    queryset = (
-        queryset
-        .distinct()
-        .order_by(
-            "name",
-            "folder_path",
+    total_archivos = sum(
+        len(
+            plano["archivos"]
         )
+        for plano in filtrados
     )
-
-    total = queryset.count()
 
     objetos = []
 
+    planos_resultado = []
+
     if operacion == "listar":
 
-        objetos = list(
-            queryset[
-                :limite
+        seleccionados = filtrados[
+            :limite
+        ]
+
+        objetos = [
+            plano["principal"]
+            for plano in seleccionados
+        ]
+
+        for plano in seleccionados:
+
+            principal = plano[
+                "principal"
             ]
-        )
+
+            archivos = plano[
+                "archivos"
+            ]
+
+            planos_resultado.append(
+                {
+                    "codigo":
+                        plano["codigo"],
+
+                    "principal_id":
+                        principal.id,
+
+                    "principal_name":
+                        principal.name,
+
+                    "revision":
+                        principal.revision,
+
+                    "version":
+                        principal.version,
+
+                    "description":
+                        principal.description,
+
+                    "folder_path":
+                        principal.folder_path,
+
+                    "review_mark":
+                        principal.review_mark,
+
+                    "sdi":
+                        principal.sdi,
+
+                    "incidence":
+                        principal.incidence,
+
+                    "archivos":
+                        [
+                            {
+                                "id":
+                                    archivo.id,
+
+                                "name":
+                                    archivo.name,
+
+                                "extension":
+                                    _extraer_extension(
+                                        archivo.name
+                                    ),
+
+                                "folder_path":
+                                    archivo.folder_path,
+
+                                "red_line":
+                                    _es_red_line(
+                                        archivo
+                                    ),
+
+                                "referencial":
+                                    _es_referencial(
+                                        archivo
+                                    ),
+
+                                "anulado":
+                                    _es_anulado(
+                                        archivo
+                                    ),
+
+                                "drawings":
+                                    _es_drawings(
+                                        archivo
+                                    ),
+                            }
+                            for archivo
+                            in archivos
+                        ],
+                }
+            )
 
     # ========================================================
     # CONCEPTO
@@ -1294,100 +1451,25 @@ def ejecutar_consulta_planos(
         "filtros_atributos":
             filtros_atributos,
 
+        # Planos lógicos
         "total":
             total,
+
+        # Archivos físicos asociados
+        "total_archivos":
+            total_archivos,
 
         "limite":
             limite,
 
+        # Principal de cada plano lógico
         "objetos":
             objetos,
+
+        # Estructura completa
+        "planos_logicos":
+            planos_resultado,
 
         "filtros_semanticos":
             filtros_semanticos,
-    }
-
-    # ========================================================
-    # CONSULTA POR COLO
-    # ========================================================
-
-    colos = _extraer_colos(
-        pregunta
-    )
-
-    if not colos:
-        raise ValueError(
-            "No fue posible identificar "
-            "el plano o los COLO solicitados."
-        )
-
-    operacion = (
-        "contar"
-        if _pregunta_pide_conteo(
-            pregunta
-        )
-        else "listar"
-    )
-
-    filtro = _filtro_colos(
-        colos
-    )
-
-    queryset = (
-        PlanosRecord.objects
-        .filter(
-            filtro
-        )
-        .filter(
-            name__icontains="-PL-"
-        )
-        .distinct()
-        .order_by(
-            "name",
-            "folder_path",
-        )
-    )
-
-    total = queryset.count()
-
-    objetos = []
-
-    if operacion == "listar":
-
-        objetos = list(
-            queryset[
-                :limite
-            ]
-        )
-
-    return {
-        "accion":
-            operacion,
-
-        "tema":
-            "planos",
-
-        "modelo":
-            "rdi.PlanosRecord",
-
-        "concepto":
-            "colo",
-
-        "colos":
-            colos,
-
-        "total":
-            total,
-
-        "limite":
-            limite,
-
-        "objetos":
-            objetos,
-
-        "filtros_semanticos":
-            {
-                "colo":
-                    colos,
-            },
     }
