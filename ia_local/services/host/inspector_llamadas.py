@@ -10,6 +10,10 @@ from .inspector_proyecto import (
     obtener_archivos_python,
 )
 
+from .inspector_imports import (
+    analizar_imports_simbolo,
+)
+
 
 # ============================================================
 # UTILIDADES
@@ -437,6 +441,7 @@ def resolver_llamada_interna(
 ) -> dict[str, Any]:
 
     if indice is None:
+
         indice = (
             construir_indice_simbolos()
         )
@@ -452,56 +457,153 @@ def resolver_llamada_interna(
         )
     )
 
-    if not nombre_simple:
+    respuesta_base = {
+        "llamada":
+            llamada,
 
-        return {
-            "llamada":
-                llamada,
-
-            "nombre_simple":
-                "",
-
-            "resuelta":
-                False,
-
-            "ambigua":
-                False,
-
-            "destinos":
-                [],
-        }
-
-    candidatos = list(
-        indice[
-            "por_nombre"
-        ].get(
+        "nombre_simple":
             nombre_simple,
+
+        "resuelta":
+            False,
+
+        "ambigua":
+            False,
+
+        "destinos":
             [],
+
+        "metodo_resolucion":
+            None,
+    }
+
+    if not nombre_simple:
+        return respuesta_base
+
+    # ========================================================
+    # 1. RESOLUCIÓN MEDIANTE IMPORTS REALES
+    # ========================================================
+
+    if simbolo_origen:
+
+        imports = (
+            analizar_imports_simbolo(
+                simbolo_origen
+            )
         )
-    )
 
-    if not candidatos:
+        simbolos_importados = (
+            imports.get(
+                "simbolos",
+                {}
+            )
+        )
 
-        return {
-            "llamada":
-                llamada,
+        modulos_importados = (
+            imports.get(
+                "modulos",
+                {}
+            )
+        )
 
-            "nombre_simple":
-                nombre_simple,
+        destino_import = None
 
-            "resuelta":
-                False,
+        # ----------------------------------------------------
+        # Caso:
+        #
+        # from .orm_generico import ejecutar_consulta
+        #
+        # ejecutar_consulta(...)
+        # ----------------------------------------------------
 
-            "ambigua":
-                False,
+        if "." not in llamada:
 
-            "destinos":
-                [],
-        }
+            destino_import = (
+                simbolos_importados.get(
+                    llamada
+                )
+            )
 
-    # --------------------------------------------------------
-    # PRIORIZACIÓN POR MISMO MÓDULO
-    # --------------------------------------------------------
+        # ----------------------------------------------------
+        # Casos:
+        #
+        # import modulo as alias
+        # alias.funcion(...)
+        #
+        # from paquete import modulo
+        # modulo.funcion(...)
+        # ----------------------------------------------------
+
+        else:
+
+            partes = llamada.split(
+                "."
+            )
+
+            primero = partes[
+                0
+            ]
+
+            resto = ".".join(
+                partes[
+                    1:
+                ]
+            )
+
+            prefijo = (
+                modulos_importados.get(
+                    primero
+                )
+            )
+
+            if prefijo and resto:
+
+                destino_import = (
+                    f"{prefijo}.{resto}"
+                )
+
+            else:
+
+                prefijo = (
+                    simbolos_importados.get(
+                        primero
+                    )
+                )
+
+                if prefijo and resto:
+
+                    destino_import = (
+                        f"{prefijo}.{resto}"
+                    )
+
+        if destino_import:
+
+            destino = indice[
+                "por_qualname"
+            ].get(
+                destino_import
+            )
+
+            if destino:
+
+                return {
+                    **respuesta_base,
+
+                    "resuelta":
+                        True,
+
+                    "destinos":
+                        [
+                            destino
+                        ],
+
+                    "metodo_resolucion":
+                        "import",
+                }
+
+    # ========================================================
+    # 2. MISMO MÓDULO
+    # ========================================================
 
     if simbolo_origen:
 
@@ -513,21 +615,55 @@ def resolver_llamada_interna(
             or ""
         )
 
-        mismo_modulo = [
-            item
-            for item
-            in candidatos
-            if item[
-                "modulo"
-            ] == modulo_origen
-        ]
+        if modulo_origen:
 
-        if mismo_modulo:
-            candidatos = mismo_modulo
+            qualname_local = (
+                f"{modulo_origen}."
+                f"{nombre_simple}"
+            )
 
-    # --------------------------------------------------------
-    # PRIORIZACIÓN POR MISMA APP
-    # --------------------------------------------------------
+            destino_local = indice[
+                "por_qualname"
+            ].get(
+                qualname_local
+            )
+
+            if destino_local:
+
+                return {
+                    **respuesta_base,
+
+                    "resuelta":
+                        True,
+
+                    "destinos":
+                        [
+                            destino_local
+                        ],
+
+                    "metodo_resolucion":
+                        "mismo_modulo",
+                }
+
+    # ========================================================
+    # 3. BÚSQUEDA GENERAL POR NOMBRE
+    # ========================================================
+
+    candidatos = list(
+        indice[
+            "por_nombre"
+        ].get(
+            nombre_simple,
+            [],
+        )
+    )
+
+    if not candidatos:
+        return respuesta_base
+
+    # ========================================================
+    # 4. PRIORIZACIÓN POR MISMA APP
+    # ========================================================
 
     if (
         simbolo_origen
@@ -572,11 +708,7 @@ def resolver_llamada_interna(
                 candidatos = misma_app
 
     return {
-        "llamada":
-            llamada,
-
-        "nombre_simple":
-            nombre_simple,
+        **respuesta_base,
 
         "resuelta":
             len(
@@ -590,8 +722,16 @@ def resolver_llamada_interna(
 
         "destinos":
             candidatos,
-    }
 
+        "metodo_resolucion":
+            (
+                "nombre"
+                if len(
+                    candidatos
+                ) == 1
+                else "ambiguo"
+            ),
+    }
 
 # ============================================================
 # RESOLUCIÓN DE LLAMADAS DE UN SÍMBOLO
