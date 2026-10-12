@@ -171,6 +171,7 @@ def consultar_ollama(
     *,
     pregunta: str,
     contexto: str,
+    prompt_sistema: str | None = None,
 ) -> dict[str, Any]:
 
     config = (
@@ -202,7 +203,10 @@ def consultar_ollama(
                     "system",
 
                 "content":
-                    _construir_prompt_sistema(),
+                    (
+                        prompt_sistema
+                        or _construir_prompt_sistema()
+                    ),
             },
             {
                 "role":

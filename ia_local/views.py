@@ -28,8 +28,8 @@ from reportlab.platypus import (
 
 
 from .models import IAReglaSemantica
-from .services.host.respuesta_llm import (
-    responder_pregunta_host,
+from .services.host.router import (
+    procesar_pregunta,
 )
 from .services.reglas_semanticas import (
     guardar_regla_exacta,
@@ -46,53 +46,56 @@ def _ejecutar_consulta_ia(
     limite=20,
 ):
     """
-    Punto único de entrada de la interfaz IA.
+    Punto único de entrada para web/API.
 
-    El parámetro limite se conserva temporalmente por
-    compatibilidad con las views existentes.
-
-    El flujo real es ahora:
-
-        pregunta
-        -> inspección del host
-        -> evidencia estructural
-        -> Qwen
-        -> respuesta fundada
+    La view no conoce inspectores, Ollama ni motores internos.
+    Toda decisión se delega al router portable.
     """
 
-    resultado_host = responder_pregunta_host(
+    resultado = procesar_pregunta(
         pregunta,
         profundidad=3,
     )
 
-    if not resultado_host.get(
+    if not resultado.get(
         "ok"
     ):
         raise RuntimeError(
             str(
-                resultado_host.get(
+                resultado.get(
                     "error",
-                    "Error en la consulta IA.",
+                    "Error procesando la consulta IA.",
                 )
             )
         )
 
+    intencion = (
+        resultado.get(
+            "intencion"
+        )
+        or {}
+    )
+
     diagnostico = {
         "origen":
-            resultado_host.get(
-                "respondido_por"
+            intencion.get(
+                "origen"
             ),
 
         "tema":
-            "host",
+            resultado.get(
+                "destino"
+            ),
 
         "modelo":
-            resultado_host.get(
-                "modelo"
+            intencion.get(
+                "entidad"
             ),
 
         "operacion":
-            "consulta_estructural",
+            intencion.get(
+                "accion"
+            ),
 
         "cantidad":
             None,
@@ -109,42 +112,55 @@ def _ejecutar_consulta_ia(
         "limite":
             limite,
 
-        "hay_evidencia":
-            resultado_host.get(
-                "hay_evidencia"
+        "destino":
+            resultado.get(
+                "destino"
+            ),
+
+        "tipo_intencion":
+            intencion.get(
+                "tipo"
+            ),
+
+        "subtipo_intencion":
+            intencion.get(
+                "subtipo"
+            ),
+
+        "validado":
+            intencion.get(
+                "validado"
             ),
 
         "llm_invocado":
-            resultado_host.get(
+            resultado.get(
                 "llm_invocado"
-            ),
-
-        "deteccion":
-            resultado_host.get(
-                "deteccion"
             ),
     }
 
-    respuesta_texto = str(
-        resultado_host.get(
-            "respuesta",
-            ""
-        )
-        or ""
-    )
-
     return {
         "motor":
-            resultado_host,
+            intencion,
 
         "diagnostico":
             diagnostico,
 
         "respuesta_estructurada":
-            resultado_host,
+            resultado.get(
+                "respuesta_estructurada"
+            ),
 
         "respuesta_texto":
-            respuesta_texto,
+            str(
+                resultado.get(
+                    "respuesta",
+                    ""
+                )
+                or ""
+            ),
+
+        "router":
+            resultado,
     }
 
 
