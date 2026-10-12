@@ -534,7 +534,6 @@ def _filtrar_simbolos_modelos_canonicos(
 # CONTEXTO DE UN MODELO
 # ============================================================
 
-
 def _contexto_modelo(
     modelo: dict[str, Any],
     *,
@@ -553,6 +552,15 @@ def _contexto_modelo(
     )
 
     resultado_views = []
+
+    # --------------------------------------------------------
+    # Esta estructura reúne relaciones MODELO -> FUNCIÓN ORM
+    # demostradas por HOST007/HOST008, eliminando duplicados
+    # producidos porque varias views pueden alcanzar la misma
+    # función.
+    # --------------------------------------------------------
+
+    usos_por_clave = {}
 
     for item in views:
 
@@ -591,29 +599,110 @@ def _contexto_modelo(
             [],
         ):
 
+            dato_operacion = {
+                "simbolo":
+                    operacion.get(
+                        "simbolo"
+                    ),
+
+                "operacion":
+                    operacion.get(
+                        "operacion"
+                    ),
+
+                "modo":
+                    operacion.get(
+                        "modo"
+                    ),
+
+                "linea":
+                    operacion.get(
+                        "linea"
+                    ),
+            }
+
             operaciones.append(
-                {
-                    "simbolo":
-                        operacion.get(
-                            "simbolo"
+                dato_operacion
+            )
+
+            # =================================================
+            # USO DE MODELO DEMOSTRADO
+            # =================================================
+
+            simbolo = _texto(
+                operacion.get(
+                    "simbolo"
+                )
+            )
+
+            modo = _texto(
+                operacion.get(
+                    "modo"
+                )
+            )
+
+            linea = operacion.get(
+                "linea"
+            )
+
+            nombre_operacion = _texto(
+                operacion.get(
+                    "operacion"
+                )
+            )
+
+            if not simbolo:
+                continue
+
+            clave = (
+                simbolo,
+                modo,
+                linea,
+            )
+
+            if clave not in usos_por_clave:
+
+                usos_por_clave[
+                    clave
+                ] = {
+                    "modelo":
+                        label,
+
+                    "tabla":
+                        modelo.get(
+                            "tabla"
                         ),
 
-                    "operacion":
-                        operacion.get(
-                            "operacion"
-                        ),
+                    "simbolo":
+                        simbolo,
 
                     "modo":
-                        operacion.get(
-                            "modo"
-                        ),
+                        modo,
 
                     "linea":
-                        operacion.get(
-                            "linea"
-                        ),
+                        linea,
+
+                    "operaciones":
+                        [],
                 }
-            )
+
+            if (
+                nombre_operacion
+                and nombre_operacion
+                not in usos_por_clave[
+                    clave
+                ][
+                    "operaciones"
+                ]
+            ):
+
+                usos_por_clave[
+                    clave
+                ][
+                    "operaciones"
+                ].append(
+                    nombre_operacion
+                )
 
         resultado_views.append(
             {
@@ -632,6 +721,25 @@ def _contexto_modelo(
                     operaciones,
             }
         )
+
+    usos_demostrados = list(
+        usos_por_clave.values()
+    )
+
+    usos_demostrados.sort(
+        key=lambda item: (
+            item[
+                "simbolo"
+            ],
+            item[
+                "linea"
+            ]
+            if item[
+                "linea"
+            ] is not None
+            else -1,
+        )
+    )
 
     return {
         "label":
@@ -659,7 +767,12 @@ def _contexto_modelo(
 
         "views":
             resultado_views,
+
+        # Relación directa y explícita para HOST012.
+        "usos_demostrados":
+            usos_demostrados,
     }
+
 
 
 # ============================================================
@@ -1082,6 +1195,59 @@ def contexto_semantico_a_texto(
                     f"línea {op['linea']}"
                 )
 
+        # ====================================================
+        # RELACIONES MODELO -> FUNCIÓN DEMOSTRADAS
+        # ====================================================
+
+        if modelo.get(
+            "usos_demostrados"
+        ):
+
+            lineas.append(
+                "- USOS DE MODELO DEMOSTRADOS:"
+            )
+
+        for uso in modelo.get(
+            "usos_demostrados",
+            [],
+        ):
+
+            lineas.append(
+                f"  * modelo: "
+                f"{uso['modelo']}"
+            )
+
+            lineas.append(
+                f"    función: "
+                f"{uso['simbolo']}"
+            )
+
+            lineas.append(
+                f"    tabla: "
+                f"{uso['tabla']}"
+            )
+
+            lineas.append(
+                f"    modo: "
+                f"{uso['modo']}"
+            )
+
+            lineas.append(
+                f"    operaciones ORM: "
+                f"{', '.join(uso['operaciones'])}"
+            )
+
+            lineas.append(
+                f"    línea: "
+                f"{uso['linea']}"
+            )
+
+            lineas.append(
+                "    hecho: esta función usa el modelo "
+                "indicado mediante las operaciones ORM "
+                "listadas."
+            )
+
         lineas.append("")
 
     # ========================================================
@@ -1219,7 +1385,6 @@ def contexto_semantico_a_texto(
     return "\n".join(
         lineas
     )
-
 
 def construir_contexto_llm(
     pregunta: str,
