@@ -60,13 +60,13 @@ def _resolver_modulo_relativo(
     Ejemplo:
 
         modulo_actual:
-            ia_local.services.motor_generico
+            ia_local.services.host.respuesta_llm
 
-        from .orm_generico import ejecutar_consulta
+        from .contexto_semantico import construir_contexto_semantico
 
     produce:
 
-        ia_local.services.orm_generico
+        ia_local.services.host.contexto_semantico
     """
 
     modulo_importado = str(

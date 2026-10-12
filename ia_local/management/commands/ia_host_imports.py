@@ -25,14 +25,14 @@ class Command(BaseCommand):
             "simbolo",
             nargs="?",
             default=(
-                "ia_local.services."
-                "motor_generico.ejecutar_pregunta"
+                "ia_local.services.host."
+                "respuesta_llm.responder_pregunta_host"
             ),
         )
 
         parser.add_argument(
             "--llamada",
-            default="ejecutar_consulta",
+            default="construir_contexto_llm",
         )
 
     def handle(

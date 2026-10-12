@@ -26,26 +26,19 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from documents.models import Document
 
 from .models import IAReglaSemantica
-from .services.formateador_resultados import (
-    formatear_resultado_motor,
-)
-from .services.motor_generico import (
-    ejecutar_pregunta,
+from .services.host.respuesta_llm import (
+    responder_pregunta_host,
 )
 from .services.reglas_semanticas import (
     guardar_regla_exacta,
     guardar_regla_patron,
 )
-from .services.sugerencias_patron import (
-    sugerir_patron,
-)
 
 
 # ============================================================
-# MOTOR CENTRAL
+# MOTOR CENTRAL PORTABLE
 # ============================================================
 
 def _ejecutar_consulta_ia(
@@ -53,106 +46,102 @@ def _ejecutar_consulta_ia(
     limite=20,
 ):
     """
-    Punto único de entrada para las vistas web/API.
+    Punto único de entrada de la interfaz IA.
 
-    La exportación NO vuelve a llamar esta función.
-    Excel/PDF reciben la respuesta ya mostrada
-    al usuario.
+    El parámetro limite se conserva temporalmente por
+    compatibilidad con las views existentes.
+
+    El flujo real es ahora:
+
+        pregunta
+        -> inspección del host
+        -> evidencia estructural
+        -> Qwen
+        -> respuesta fundada
     """
 
-    resultado_motor = ejecutar_pregunta(
+    resultado_host = responder_pregunta_host(
         pregunta,
-        limite=limite,
+        profundidad=3,
     )
 
-    respuesta_estructurada = (
-        formatear_resultado_motor(
-            resultado_motor
+    if not resultado_host.get(
+        "ok"
+    ):
+        raise RuntimeError(
+            str(
+                resultado_host.get(
+                    "error",
+                    "Error en la consulta IA.",
+                )
+            )
         )
-    )
 
     diagnostico = {
         "origen":
-            resultado_motor.get(
-                "origen"
+            resultado_host.get(
+                "respondido_por"
             ),
 
         "tema":
-            resultado_motor.get(
-                "tema"
-            ),
+            "host",
 
         "modelo":
-            resultado_motor.get(
+            resultado_host.get(
                 "modelo"
             ),
 
         "operacion":
-            resultado_motor.get(
-                "operacion"
-            ),
+            "consulta_estructural",
 
         "cantidad":
-            resultado_motor.get(
-                "cantidad"
-            ),
+            None,
 
         "orden":
-            resultado_motor.get(
-                "orden"
-            ),
+            None,
 
         "filtros_orm":
-            resultado_motor.get(
-                "filtros_orm"
-            ),
+            None,
 
         "total":
-            resultado_motor.get(
-                "total"
-            ),
+            None,
 
         "limite":
-            resultado_motor.get(
-                "limite"
+            limite,
+
+        "hay_evidencia":
+            resultado_host.get(
+                "hay_evidencia"
+            ),
+
+        "llm_invocado":
+            resultado_host.get(
+                "llm_invocado"
+            ),
+
+        "deteccion":
+            resultado_host.get(
+                "deteccion"
             ),
     }
 
-    # MOTOR_CODIGO puede entregar una explicación natural
-    # construida por Qwen a partir de evidencia real del proyecto.
-    #
-    # Los demás motores conservan por ahora su representación
-    # estructurada habitual.
-    respuesta_texto = None
-
-    if isinstance(
-        respuesta_estructurada,
-        dict,
-    ):
-        respuesta_texto = (
-            respuesta_estructurada.get(
-                "respuesta_texto"
-            )
+    respuesta_texto = str(
+        resultado_host.get(
+            "respuesta",
+            ""
         )
-
-    if not respuesta_texto:
-
-        respuesta_texto = json.dumps(
-            respuesta_estructurada,
-            ensure_ascii=False,
-            indent=2,
-            default=str,
-        )
+        or ""
+    )
 
     return {
         "motor":
-            resultado_motor,
+            resultado_host,
 
         "diagnostico":
             diagnostico,
 
         "respuesta_estructurada":
-            respuesta_estructurada,
+            resultado_host,
 
         "respuesta_texto":
             respuesta_texto,
@@ -336,140 +325,6 @@ def consulta_ia_json(request):
                     diagnostico[
                         "total"
                     ],
-
-                "respuesta":
-                    salida[
-                        "respuesta_texto"
-                    ],
-
-                "respuesta_estructurada":
-                    salida[
-                        "respuesta_estructurada"
-                    ],
-            },
-            json_dumps_params={
-                "ensure_ascii": False
-            },
-        )
-
-    except Exception as exc:
-
-        return JsonResponse(
-            {
-                "ok": False,
-                "error": str(exc),
-            },
-            status=400,
-            json_dumps_params={
-                "ensure_ascii": False
-            },
-        )
-
-
-# ============================================================
-# INDEX TEST
-# ============================================================
-
-@staff_member_required
-def index_test(request):
-
-    return render(
-        request,
-        "ia_local/index_test.html"
-    )
-
-
-@staff_member_required
-@require_http_methods(
-    [
-        "POST",
-    ]
-)
-def consulta_test_json(request):
-
-    pregunta = (
-        request.POST.get(
-            "pregunta"
-        )
-        or ""
-    ).strip()
-
-    if not pregunta:
-
-        return JsonResponse(
-            {
-                "ok": False,
-                "error":
-                    "La pregunta está vacía.",
-            },
-            status=400,
-            json_dumps_params={
-                "ensure_ascii": False
-            },
-        )
-
-    try:
-
-        salida = (
-            _ejecutar_consulta_ia(
-                pregunta
-            )
-        )
-
-        motor = salida[
-            "motor"
-        ]
-
-        diagnostico = salida[
-            "diagnostico"
-        ]
-
-        raw = (
-            motor.get(
-                "intencion_raw"
-            )
-            or motor.get(
-                "intencion"
-            )
-        )
-
-        normalizado = (
-            motor.get(
-                "intencion"
-            )
-        )
-
-        sugerencia_patron = (
-            sugerir_patron(
-                pregunta,
-                normalizado,
-            )
-        )
-
-        return JsonResponse(
-            {
-                "ok":
-                    True,
-
-                "pregunta":
-                    pregunta,
-
-                "origen_interpretacion":
-                    diagnostico[
-                        "origen"
-                    ],
-
-                "raw":
-                    raw,
-
-                "normalizado":
-                    normalizado,
-
-                "sugerencia_patron":
-                    sugerencia_patron,
-
-                "resultado":
-                    diagnostico,
 
                 "respuesta":
                     salida[
@@ -822,201 +677,6 @@ def guardar_patron_test_json(
             },
             status=400,
         )
-
-
-# ============================================================
-# DIAGNOSTICO DOCUMENTOS
-# ============================================================
-
-def diagnostico_documentos(
-    request,
-):
-
-    docs = (
-        Document.objects
-        .select_related(
-            "project",
-            "company",
-            "process",
-            "doc_type",
-            "folder",
-            "sello_verificado_por",
-            "liberacion_registrada_por",
-        )
-        .order_by(
-            "-date",
-            "-id",
-        )[:50]
-    )
-
-    datos = []
-
-    for doc in docs:
-
-        datos.append(
-            {
-                "id":
-                    doc.id,
-
-                "number":
-                    doc.number,
-
-                "code":
-                    doc.code,
-
-                "title":
-                    doc.title,
-
-                "description":
-                    doc.description,
-
-                "revision":
-                    doc.revision,
-
-                "date":
-                    (
-                        str(
-                            doc.date
-                        )
-                        if doc.date
-                        else None
-                    ),
-
-                "status":
-                    doc.status,
-
-                "status_nombre":
-                    doc.get_status_display(),
-
-                "informado":
-                    doc.informado,
-
-                "informado_nombre":
-                    doc.get_informado_display(),
-
-                "project_code":
-                    (
-                        doc.project.code
-                        if doc.project
-                        else None
-                    ),
-
-                "project_name":
-                    (
-                        doc.project.name
-                        if doc.project
-                        else None
-                    ),
-
-                "company_code":
-                    (
-                        doc.company.code
-                        if doc.company
-                        else None
-                    ),
-
-                "company_name":
-                    (
-                        doc.company.name
-                        if doc.company
-                        else None
-                    ),
-
-                "process_code":
-                    (
-                        doc.process.code
-                        if doc.process
-                        else None
-                    ),
-
-                "process_name":
-                    (
-                        doc.process.name
-                        if doc.process
-                        else None
-                    ),
-
-                "doc_type_code":
-                    (
-                        doc.doc_type.code
-                        if doc.doc_type
-                        else None
-                    ),
-
-                "doc_type_name":
-                    (
-                        doc.doc_type.name
-                        if doc.doc_type
-                        else None
-                    ),
-
-                "folder_code":
-                    (
-                        doc.folder.code
-                        if doc.folder
-                        else None
-                    ),
-
-                "file":
-                    (
-                        doc.file.name
-                        if doc.file
-                        else None
-                    ),
-
-                "content_extract":
-                    (
-                        doc.content_extract[
-                            :1000
-                        ]
-                        if doc.content_extract
-                        else ""
-                    ),
-
-                "estado_liberacion":
-                    doc.estado_liberacion,
-
-                "estado_liberacion_nombre":
-                    doc.get_estado_liberacion_display(),
-
-                "fecha_liberacion":
-                    (
-                        str(
-                            doc.fecha_liberacion
-                        )
-                        if doc.fecha_liberacion
-                        else None
-                    ),
-
-                "created_at":
-                    (
-                        doc.created_at.isoformat()
-                        if doc.created_at
-                        else None
-                    ),
-
-                "updated_at":
-                    (
-                        doc.updated_at.isoformat()
-                        if doc.updated_at
-                        else None
-                    ),
-            }
-        )
-
-    return JsonResponse(
-        {
-            "total_mostrados":
-                len(datos),
-
-            "documentos":
-                datos,
-        },
-        json_dumps_params={
-            "indent": 2,
-            "ensure_ascii": False,
-        },
-    )
 
 
 # ============================================================
