@@ -359,6 +359,10 @@ def procesar_pregunta(
                         )
                     ),
 
+                    "resolucion_entidad_datos":
+                     resolucion_entidad,
+
+
                 "respuesta": (
                     "Se detectó una consulta de datos, pero "
                     "no existe una entidad suficientemente "
@@ -378,16 +382,38 @@ def procesar_pregunta(
                     "validado":
                         entidad_validada,
                 },
+
+
+
+
+
             }
+
 
         # ----------------------------------------------------
         # 2. INTERPRETACIÓN
         # ----------------------------------------------------
 
+        evidencia_entidad = None
+
+        if isinstance(
+            resolucion_entidad,
+            dict,
+        ):
+
+            if resolucion_entidad.get(
+                "resuelto"
+            ):
+
+                evidencia_entidad = (
+                    resolucion_entidad
+                )
+
         interpretacion = (
             interpretar_consulta_datos(
                 pregunta,
                 modelo=entidad,
+                evidencia_entidad=evidencia_entidad,
             )
         )
 

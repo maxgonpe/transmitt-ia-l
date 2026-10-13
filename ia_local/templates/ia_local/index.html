@@ -113,6 +113,15 @@
             background: #1d4ed8;
         }
 
+        .btn-limpiar {
+            background: #475569;
+            color: white;
+        }
+
+        .btn-limpiar:hover {
+            background: #334155;
+        }
+
         .btn-excel {
             background: #15803d;
             color: white;
@@ -193,6 +202,21 @@
             font-size: 12px;
             text-transform: uppercase;
             margin-bottom: 5px;
+        }
+
+        .respuesta-texto {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 18px;
+            white-space: pre-wrap;
+            line-height: 1.55;
+        }
+
+        .subtitulo-resultado {
+            margin: 20px 0 8px;
+            font-size: 16px;
         }
 
         pre {
@@ -285,6 +309,14 @@
                     id="btnConsultar"
                 >
                     Consultar
+                </button>
+
+                <button
+                    type="button"
+                    class="btn-limpiar"
+                    id="btnLimpiar"
+                >
+                    Limpiar
                 </button>
 
             </div>
@@ -426,7 +458,20 @@
             </div>
 
 
-            <pre id="respuesta"></pre>
+            <h3 class="subtitulo-resultado">
+                Respuesta
+            </h3>
+
+            <div
+                id="respuestaTexto"
+                class="respuesta-texto"
+            ></div>
+
+            <h3 class="subtitulo-resultado">
+                JSON completo
+            </h3>
+
+            <pre id="respuestaJson"></pre>
 
         </section>
 
@@ -438,6 +483,9 @@
 <script>
 
     let ultimaRespuestaEstructurada =
+        null;
+
+    let ultimaRespuestaCompleta =
         null;
 
 
@@ -564,6 +612,83 @@
     }
 
 
+
+function limpiarConsulta() {
+
+    document
+        .getElementById(
+            "pregunta"
+        )
+        .value = "";
+
+    document
+        .getElementById(
+            "respuestaTexto"
+        )
+        .textContent = "";
+
+    document
+        .getElementById(
+            "respuestaJson"
+        )
+        .textContent = "";
+
+    document
+        .getElementById(
+            "bloqueResultado"
+        )
+        .style.display = "none";
+
+    document
+        .getElementById(
+            "exportaciones"
+        )
+        .style.display = "none";
+
+    document
+        .getElementById(
+            "estado"
+        )
+        .className = "";
+
+    document
+        .getElementById(
+            "estado"
+        )
+        .textContent = "";
+
+    for (const id of [
+        "origen",
+        "tema",
+        "operacion",
+        "total",
+    ]) {
+        document
+            .getElementById(id)
+            .textContent = "-";
+    }
+
+    ultimaRespuestaEstructurada = null;
+    ultimaRespuestaCompleta = null;
+
+    document
+        .getElementById(
+            "pregunta"
+        )
+        .focus();
+}
+
+
+document
+    .getElementById(
+        "btnLimpiar"
+    )
+    .addEventListener(
+        "click",
+        limpiarConsulta
+    );
+
+
     document
         .getElementById(
             "formConsulta"
@@ -634,26 +759,34 @@
                         pregunta
                     );
 
+                    const csrfInput =
+                        document.querySelector(
+                            'input[name="csrfmiddlewaretoken"]'
+                        );
+
+                    if (!csrfInput) {
+                        throw new Error(
+                            "No se encontró el token CSRF de Django."
+                        );
+                    }
+
+                    datos.append(
+                        "csrfmiddlewaretoken",
+                        csrfInput.value
+                    );
+
 
                     const respuestaHttp =
                         await fetch(
-                            "{% url 'ia_local:consulta_ia_json' %}",
+                            "{% url 'ia_local:consultar' %}",
                             {
                                 method:
                                     "POST",
-
-                                headers: {
-                                    "X-CSRFToken":
-                                        getCookie(
-                                            "csrftoken"
-                                        )
-                                },
 
                                 body:
                                     datos
                             }
                         );
-
 
                     const data =
                         await respuestaHttp
@@ -675,6 +808,11 @@
 
                     ultimaRespuestaEstructurada =
                         data.respuesta_estructurada;
+
+                    ultimaRespuestaCompleta =
+                        data.json_completo ||
+                        data.respuesta_estructurada ||
+                        data;
 
 
                     document
@@ -711,11 +849,20 @@
 
                     document
                         .getElementById(
-                            "respuesta"
+                            "respuestaTexto"
+                        )
+                        .textContent =
+                        data.respuesta ||
+                        "Consulta procesada correctamente.";
+
+
+                    document
+                        .getElementById(
+                            "respuestaJson"
                         )
                         .textContent =
                         JSON.stringify(
-                            data.respuesta_estructurada,
+                            ultimaRespuestaCompleta,
                             null,
                             2
                         );
@@ -731,7 +878,7 @@
 
                     prepararExportaciones(
                         pregunta,
-                        data.respuesta_estructurada
+                        ultimaRespuestaCompleta
                     );
 
 
@@ -747,6 +894,9 @@
                 ) {
 
                     ultimaRespuestaEstructurada =
+                        null;
+
+                    ultimaRespuestaCompleta =
                         null;
 
 

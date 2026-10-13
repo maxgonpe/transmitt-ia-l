@@ -4,6 +4,13 @@ import re
 import unicodedata
 from typing import Any
 
+from django.apps import apps
+from django.db import (
+    DatabaseError,
+    models,
+)
+from django.db.models import Q
+
 from .catalogo_datos import (
     construir_catalogo_datos,
 )
@@ -306,6 +313,393 @@ def _evidencia_valores(
     }
 
 
+
+# ============================================================
+# EVIDENCIA TEXTUAL REAL
+# ============================================================
+
+
+_STOPWORDS_BUSQUEDA = {
+    "lista",
+    "listar",
+    "muestra",
+    "muestrame",
+    "mostrar",
+    "todos",
+    "todas",
+    "todo",
+    "toda",
+    "los",
+    "las",
+    "del",
+    "de",
+    "para",
+    "por",
+    "con",
+    "que",
+    "quiero",
+    "dame",
+    "ver",
+}
+
+
+def _terminos_busqueda_textual(
+    pregunta: str,
+) -> list[str]:
+    """
+    Obtiene términos significativos de una pregunta para buscar
+    evidencia textual real en campos CharField.
+
+    Prioriza frases de varias palabras antes que tokens aislados.
+    """
+
+    texto = _normalizar(
+        pregunta
+    )
+
+    tokens = [
+        token
+        for token in texto.split()
+        if (
+            len(token) >= 4
+            and token not in _STOPWORDS_BUSQUEDA
+        )
+    ]
+
+    if not tokens:
+        return []
+
+    resultado = []
+
+    # Frases de tres palabras.
+    for indice in range(
+        max(
+            0,
+            len(tokens) - 2,
+        )
+    ):
+        resultado.append(
+            " ".join(
+                tokens[
+                    indice:
+                    indice + 3
+                ]
+            )
+        )
+
+    # Frases de dos palabras.
+    for indice in range(
+        max(
+            0,
+            len(tokens) - 1,
+        )
+    ):
+        resultado.append(
+            " ".join(
+                tokens[
+                    indice:
+                    indice + 2
+                ]
+            )
+        )
+
+    # Tokens individuales.
+    resultado.extend(
+        tokens
+    )
+
+    # Conservamos orden y eliminamos duplicados.
+    unicos = []
+
+    for termino in resultado:
+
+        if termino not in unicos:
+            unicos.append(
+                termino
+            )
+
+    # Evitamos generar un número excesivo de consultas.
+    return unicos[
+        :8
+    ]
+
+
+def _buscar_evidencia_textual(
+    pregunta: str,
+    catalogo: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Busca evidencia textual real exclusivamente en CharField.
+
+    Esta función:
+
+        - solo lee la base de datos;
+        - no usa TextField;
+        - no usa JSONField;
+        - no usa FileField;
+        - no ejecuta SQL arbitrario;
+        - no decide por sí misma qué modelo debe utilizarse.
+
+    Su resultado sirve como evidencia para diagnóstico y
+    desambiguación posterior.
+    """
+
+    terminos = _terminos_busqueda_textual(
+        pregunta
+    )
+
+    if not terminos:
+        return []
+
+    candidatos = []
+
+    for modelo_catalogo in catalogo:
+
+        app_label = modelo_catalogo.get(
+            "app_label"
+        )
+
+        nombre_modelo = modelo_catalogo.get(
+            "modelo"
+        )
+
+        if (
+            not app_label
+            or not nombre_modelo
+        ):
+            continue
+
+        try:
+
+            modelo_django = apps.get_model(
+                app_label,
+                nombre_modelo,
+            )
+
+        except LookupError:
+            continue
+
+        if modelo_django is None:
+            continue
+
+        coincidencias_campos = []
+        soporte_total = 0
+        puntaje_total = 0
+
+        for campo in modelo_django._meta.fields:
+
+            if not getattr(
+                campo,
+                "concrete",
+                False,
+            ):
+                continue
+
+            if getattr(
+                campo,
+                "is_relation",
+                False,
+            ):
+                continue
+
+            if not isinstance(
+                campo,
+                models.CharField,
+            ):
+                continue
+
+            # Evitamos campos de texto anormalmente grandes.
+            max_length = getattr(
+                campo,
+                "max_length",
+                None,
+            )
+
+            if (
+                max_length
+                and max_length > 1000
+            ):
+                continue
+
+            filtro = Q()
+
+            for termino in terminos:
+
+                filtro |= Q(
+                    **{
+                        f"{campo.name}__icontains":
+                            termino
+                    }
+                )
+
+            try:
+
+                valores = list(
+                    modelo_django.objects
+                    .filter(
+                        filtro
+                    )
+                    .exclude(
+                        **{
+                            f"{campo.name}":
+                                ""
+                        }
+                    )
+                    .values_list(
+                        campo.name,
+                        flat=True,
+                    )[
+                        :25
+                    ]
+                )
+
+            except (
+                DatabaseError,
+                TypeError,
+                ValueError,
+            ):
+                continue
+
+            if not valores:
+                continue
+
+            terminos_encontrados = []
+
+            for termino in terminos:
+
+                termino_n = _normalizar(
+                    termino
+                )
+
+                if any(
+                    termino_n
+                    in _normalizar(
+                        valor
+                    )
+                    for valor in valores
+                ):
+                    terminos_encontrados.append(
+                        termino
+                    )
+
+            if not terminos_encontrados:
+                continue
+
+            soporte = len(
+                valores
+            )
+
+            # Una frase de varias palabras es evidencia más fuerte
+            # que una coincidencia de un solo token.
+            puntaje = sum(
+                100
+                if " " in termino
+                else 30
+                for termino
+                in terminos_encontrados
+            )
+
+            soporte_total += soporte
+            puntaje_total += puntaje
+
+            coincidencias_campos.append(
+                {
+                    "campo":
+                        campo.name,
+
+                    "tipo":
+                        campo.__class__.__name__,
+
+                    "terminos":
+                        terminos_encontrados,
+
+                    "soporte_muestra":
+                        soporte,
+
+                    "muestras":
+                        [
+                            str(
+                                valor
+                            )
+                            for valor
+                            in valores[
+                                :5
+                            ]
+                        ],
+                }
+            )
+
+        if not coincidencias_campos:
+            continue
+
+        candidatos.append(
+            {
+                "modelo":
+                    modelo_catalogo.get(
+                        "label"
+                    ),
+
+                "app_label":
+                    app_label,
+
+                "nombre":
+                    nombre_modelo,
+
+                "verbose_name":
+                    modelo_catalogo.get(
+                        "verbose_name"
+                    ),
+
+                "puntaje_lexico":
+                    0,
+
+                "puntaje_valores":
+                    0,
+
+                "soporte_valores":
+                    0,
+
+                "puntaje_textual":
+                    puntaje_total,
+
+                "soporte_textual":
+                    soporte_total,
+
+                "puntaje_total":
+                    puntaje_total,
+
+                "coincidencias_valores":
+                    [],
+
+                "coincidencias_textuales":
+                    coincidencias_campos,
+            }
+        )
+
+    candidatos.sort(
+        key=lambda item: (
+            -item.get(
+                "puntaje_textual",
+                0,
+            ),
+            -item.get(
+                "soporte_textual",
+                0,
+            ),
+            str(
+                item.get(
+                    "modelo",
+                    "",
+                )
+            ),
+        )
+    )
+
+    return candidatos[
+        :10
+    ]
+
+
 # ============================================================
 # RESOLUCIÓN
 # ============================================================
@@ -420,7 +814,118 @@ def resolver_entidad_datos(
         )
     )
 
+        # --------------------------------------------------------
+    # FALLBACK: EVIDENCIA TEXTUAL REAL
+    # --------------------------------------------------------
+
     if not candidatos:
+
+        candidatos_textuales = (
+            _buscar_evidencia_textual(
+                pregunta,
+                catalogo,
+            )
+        )
+
+        if candidatos_textuales:
+
+            primero_textual = (
+                candidatos_textuales[
+                    0
+                ]
+            )
+
+            frases_fuertes = []
+
+            for coincidencia in primero_textual.get(
+                "coincidencias_textuales",
+                [],
+            ):
+
+                for termino in coincidencia.get(
+                    "terminos",
+                    [],
+                ):
+
+                    if " " in str(
+                        termino
+                    ).strip():
+
+                        frases_fuertes.append(
+                            termino
+                        )
+
+            # Resolución textual automática únicamente cuando:
+            #
+            # - existe exactamente un modelo candidato;
+            # - existe al menos una coincidencia de frase completa.
+            #
+            # Una palabra aislada nunca basta para resolver.
+            if (
+                len(
+                    candidatos_textuales
+                ) == 1
+                and frases_fuertes
+            ):
+
+                return {
+                    "ok":
+                        True,
+
+                    "resuelto":
+                        True,
+
+                    "entidad":
+                        primero_textual[
+                            "modelo"
+                        ],
+
+                    "razon":
+                        (
+                            "La entidad fue resuelta mediante "
+                            "evidencia textual real inequívoca: "
+                            "existe un único modelo candidato y "
+                            "se encontró una frase significativa "
+                            "de la pregunta en sus datos."
+                        ),
+
+                    "tipo_evidencia":
+                        "texto_real_inequivoco",
+
+                    "evidencia":
+                        primero_textual,
+
+                    "frases_fuertes":
+                        frases_fuertes,
+
+                    "candidatos":
+                        candidatos_textuales,
+                }
+
+            return {
+                "ok":
+                    True,
+
+                "resuelto":
+                    False,
+
+                "entidad":
+                    None,
+
+                "razon":
+                    (
+                        "Se encontraron coincidencias textuales "
+                        "reales en datos del host, pero la "
+                        "evidencia no es suficientemente "
+                        "inequívoca para elegir una entidad."
+                    ),
+
+                "tipo_evidencia":
+                    "texto_real_ambiguo",
+
+                "candidatos":
+                    candidatos_textuales,
+            }
 
         return {
             "ok":
@@ -437,6 +942,9 @@ def resolver_entidad_datos(
                     "No existen candidatos reales "
                     "relacionados con la pregunta."
                 ),
+
+            "tipo_evidencia":
+                "ninguna",
 
             "candidatos":
                 [],

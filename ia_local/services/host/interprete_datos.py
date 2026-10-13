@@ -303,6 +303,7 @@ def _perfiles_para_prompt(
 
 def _construir_contexto(
     modelo: dict[str, Any],
+    evidencia_entidad: dict[str, Any] | None = None,
 ) -> str:
 
     campos = _campos_para_prompt(
@@ -312,6 +313,29 @@ def _construir_contexto(
     perfiles = _perfiles_para_prompt(
         modelo
     )
+
+    evidencia_host = (
+        evidencia_entidad
+        if isinstance(
+            evidencia_entidad,
+            dict,
+        )
+        else {}
+    )
+
+    bloque_evidencia = ""
+
+    if evidencia_host:
+
+        bloque_evidencia = (
+            "\n\nEVIDENCIA REAL VALIDADA POR EL HOST:\n"
+            + json.dumps(
+                evidencia_host,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            + "\n"
+        )
 
     return (
         "MODELO DJANGO VALIDADO POR EL HOST:\n"
@@ -338,6 +362,7 @@ def _construir_contexto(
                 OPERADORES_PROPUESTOS
             )
         )
+        + bloque_evidencia
     )
 
 
@@ -393,7 +418,19 @@ def _prompt_sistema() -> str:
         "17. No combines varios valores observados para aproximar "
         "una categoría desconocida.\n"
         "18. Si no existe evidencia suficiente para un filtro, "
-        "omítelo.\n\n"
+        "omítelo.\n"
+        "19. Si existe EVIDENCIA REAL VALIDADA POR EL HOST, "
+        "puedes utilizarla como hecho comprobado.\n"
+        "20. Una coincidencia textual validada por el HOST indica "
+        "que la expresión indicada aparece realmente en el campo "
+        "real indicado.\n"
+        "21. Para una evidencia textual validada, puedes proponer "
+        "un filtro icontains usando exclusivamente el campo y la "
+        "frase demostrados por el HOST.\n"
+        "22. No cambies el campo, el valor ni el modelo indicado "
+        "por la evidencia HOST.\n"
+        "23. Si la evidencia HOST es ambigua o no está resuelta, "
+        "no la conviertas en filtro.\n\n"
 
         "Devuelve EXCLUSIVAMENTE JSON válido con esta forma:\n"
         "{\n"
@@ -654,6 +691,7 @@ def interpretar_consulta_datos(
     pregunta: str,
     *,
     modelo: str,
+    evidencia_entidad: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Construye una PROPUESTA declarativa.
@@ -694,7 +732,8 @@ def interpretar_consulta_datos(
         }
 
     contexto = _construir_contexto(
-        descripcion
+        descripcion,
+        evidencia_entidad=evidencia_entidad,
     )
 
     resultado_llm = consultar_ollama(
@@ -813,6 +852,9 @@ def interpretar_consulta_datos(
                     "total_duration"
                 ),
         },
+
+        "evidencia_entidad":
+            evidencia_entidad,
 
         "catalogo": {
             "tabla":

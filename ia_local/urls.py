@@ -14,4 +14,5 @@ urlpatterns = [
     path("test-vocabulario/", views.vocabulario_test_json, name="vocabulario_test_json",),
     path("exportar/excel/",views.exportar_resultado_excel,name="exportar_resultado_excel",),
     path("exportar/pdf/",views.exportar_resultado_pdf,name="exportar_resultado_pdf",),
+    path("diagnostico/", views.diagnostico_ia, name="diagnostico"),
 ]

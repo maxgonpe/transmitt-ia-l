@@ -1,6 +1,7 @@
 import io
 import json
 from datetime import datetime
+from html import escape
 
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import (
@@ -31,6 +32,9 @@ from .models import IAReglaSemantica
 from .services.host.router import (
     procesar_pregunta,
 )
+from .services.host.diagnostico import (
+    diagnosticar_pregunta,
+)
 from .services.reglas_semanticas import (
     guardar_regla_exacta,
     guardar_regla_patron,
@@ -60,18 +64,42 @@ def _ejecutar_consulta_ia(
     if not resultado.get(
         "ok"
     ):
+        mensaje = (
+            resultado.get(
+                "respuesta"
+            )
+            or resultado.get(
+                "error"
+            )
+            or "Error procesando la consulta IA."
+        )
+
         raise RuntimeError(
             str(
-                resultado.get(
-                    "error",
-                    "Error procesando la consulta IA.",
-                )
+                mensaje
             )
         )
 
     intencion = (
         resultado.get(
             "intencion"
+        )
+        or {}
+    )
+
+    respuesta_estructurada = (
+        resultado.get(
+            "respuesta_estructurada"
+        )
+        or {}
+    )
+
+    ejecucion = (
+        resultado.get(
+            "ejecucion_datos"
+        )
+        or respuesta_estructurada.get(
+            "ejecucion"
         )
         or {}
     )
@@ -88,12 +116,18 @@ def _ejecutar_consulta_ia(
             ),
 
         "modelo":
-            intencion.get(
+            ejecucion.get(
+                "modelo"
+            )
+            or intencion.get(
                 "entidad"
             ),
 
         "operacion":
-            intencion.get(
+            ejecucion.get(
+                "operacion"
+            )
+            or intencion.get(
                 "accion"
             ),
 
@@ -104,10 +138,17 @@ def _ejecutar_consulta_ia(
             None,
 
         "filtros_orm":
-            None,
+            ejecucion.get(
+                "filtros"
+            ),
 
         "total":
-            None,
+            ejecucion.get(
+                "total_devuelto",
+                ejecucion.get(
+                    "total"
+                )
+            ),
 
         "limite":
             limite,
@@ -146,9 +187,7 @@ def _ejecutar_consulta_ia(
             diagnostico,
 
         "respuesta_estructurada":
-            resultado.get(
-                "respuesta_estructurada"
-            ),
+            respuesta_estructurada,
 
         "respuesta_texto":
             str(
@@ -350,6 +389,11 @@ def consulta_ia_json(request):
                 "respuesta_estructurada":
                     salida[
                         "respuesta_estructurada"
+                    ],
+
+                "json_completo":
+                    salida[
+                        "router"
                     ],
             },
             json_dumps_params={
@@ -881,25 +925,195 @@ def _valor_exportable(
     )
 
 
+
 def _extraer_resultados(
     respuesta,
 ):
     """
-    Obtiene el listado principal sin depender
-    de un único tipo de consulta.
+    Obtiene el listado principal de resultados soportando
+    tanto el contrato antiguo como HOST016.
+
+    HOST016 puede entregar las filas en:
+
+        respuesta["ejecucion"]["resultados"]
+        respuesta["ejecucion_datos"]["resultados"]
+
+    La exportación nunca vuelve a ejecutar la consulta.
     """
 
-    resultados = respuesta.get(
-        "resultados"
+    if not isinstance(
+        respuesta,
+        dict,
+    ):
+        return []
+
+    candidatos = [
+        respuesta.get(
+            "resultados"
+        ),
+    ]
+
+    for clave in (
+        "ejecucion",
+        "ejecucion_datos",
+    ):
+        bloque = respuesta.get(
+            clave
+        )
+
+        if isinstance(
+            bloque,
+            dict,
+        ):
+            candidatos.append(
+                bloque.get(
+                    "resultados"
+                )
+            )
+
+    estructurada = respuesta.get(
+        "respuesta_estructurada"
     )
 
     if isinstance(
-        resultados,
-        list,
+        estructurada,
+        dict,
     ):
-        return resultados
+        candidatos.append(
+            estructurada.get(
+                "resultados"
+            )
+        )
+
+        ejecucion = estructurada.get(
+            "ejecucion"
+        )
+
+        if isinstance(
+            ejecucion,
+            dict,
+        ):
+            candidatos.append(
+                ejecucion.get(
+                    "resultados"
+                )
+            )
+
+    for resultados in candidatos:
+        if isinstance(
+            resultados,
+            list,
+        ):
+            return resultados
 
     return []
+
+
+def _resumen_exportacion(
+    respuesta,
+):
+    """
+    Construye un resumen compacto y portable para PDF/Excel.
+
+    Evita insertar estructuras enormes (evidencia, planes,
+    ejecución completa) dentro de una sola celda o Paragraph.
+    """
+
+    resumen = []
+
+    if not isinstance(
+        respuesta,
+        dict,
+    ):
+        return resumen
+
+    for clave in (
+        "destino",
+        "respuesta",
+        "llm_invocado",
+    ):
+        valor = respuesta.get(
+            clave
+        )
+
+        if valor not in (
+            None,
+            "",
+        ):
+            resumen.append(
+                (
+                    clave,
+                    valor,
+                )
+            )
+
+    ejecucion = (
+        respuesta.get(
+            "ejecucion_datos"
+        )
+        or respuesta.get(
+            "ejecucion"
+        )
+        or {}
+    )
+
+    if not isinstance(
+        ejecucion,
+        dict,
+    ):
+        ejecucion = {}
+
+    if not ejecucion:
+        estructurada = respuesta.get(
+            "respuesta_estructurada"
+        )
+
+        if isinstance(
+            estructurada,
+            dict,
+        ):
+            ejecucion = (
+                estructurada.get(
+                    "ejecucion"
+                )
+                or {}
+            )
+
+    for clave in (
+        "modelo",
+        "operacion",
+        "tabla",
+        "total_devuelto",
+        "limite",
+    ):
+        valor = ejecucion.get(
+            clave
+        )
+
+        if valor not in (
+            None,
+            "",
+        ):
+            resumen.append(
+                (
+                    clave,
+                    valor,
+                )
+            )
+
+    return resumen
+
+
+def _texto_pdf(
+    valor,
+):
+    """Escapa contenido dinámico antes de entregarlo a ReportLab."""
+
+    return escape(
+        _valor_exportable(
+            valor
+        )
+    )
 
 
 def _campos_resultados(
@@ -1005,10 +1219,9 @@ def exportar_resultado_excel(
 
     fila = 5
 
-    for clave, valor in respuesta.items():
-
-        if clave == "resultados":
-            continue
+    for clave, valor in _resumen_exportacion(
+        respuesta
+    ):
 
         hoja_resumen.cell(
             row=fila,
@@ -1324,15 +1537,8 @@ def exportar_resultado_pdf(
     elementos.append(
         Paragraph(
             "<b>Pregunta:</b> "
-            + pregunta.replace(
-                "&",
-                "&amp;",
-            ).replace(
-                "<",
-                "&lt;",
-            ).replace(
-                ">",
-                "&gt;",
+            + escape(
+                pregunta
             ),
             estilos[
                 "BodyText"
@@ -1353,21 +1559,20 @@ def exportar_resultado_pdf(
 
     resumen = []
 
-    for clave, valor in respuesta.items():
-
-        if clave == "resultados":
-            continue
+    for clave, valor in _resumen_exportacion(
+        respuesta
+    ):
 
         resumen.append(
             [
                 Paragraph(
-                    f"<b>{clave}</b>",
+                    f"<b>{escape(str(clave))}</b>",
                     estilos[
                         "BodyText"
                     ],
                 ),
                 Paragraph(
-                    _valor_exportable(
+                    _texto_pdf(
                         valor
                     ),
                     estilos[
@@ -1521,20 +1726,8 @@ def exportar_resultado_pdf(
                     )
                 )
 
-                valor = (
+                valor = escape(
                     valor
-                    .replace(
-                        "&",
-                        "&amp;",
-                    )
-                    .replace(
-                        "<",
-                        "&lt;",
-                    )
-                    .replace(
-                        ">",
-                        "&gt;",
-                    )
                 )
 
                 fila.append(
@@ -1877,3 +2070,72 @@ def vocabulario_test_json(request):
                 "ensure_ascii": False
             },
         )
+
+# ============================================================
+# HOST016 - CONSOLA DE DIAGNÓSTICO
+# ============================================================
+
+@staff_member_required
+@require_http_methods(
+    [
+        "GET",
+        "POST",
+    ]
+)
+def diagnostico_ia(request):
+    """
+    Consola técnica de HOST016.
+
+    Permite observar el pipeline completo de ia_local sin
+    introducir decisiones nuevas ni ejecutar etapas adicionales.
+    """
+
+    contexto = {
+        "pregunta": "",
+        "diagnostico": None,
+        "error": None,
+    }
+
+    if request.method == "POST":
+
+        pregunta = (
+            request.POST.get(
+                "pregunta"
+            )
+            or ""
+        ).strip()
+
+        contexto[
+            "pregunta"
+        ] = pregunta
+
+        if not pregunta:
+
+            contexto[
+                "error"
+            ] = "Escribe una pregunta."
+
+        else:
+
+            try:
+
+                contexto[
+                    "diagnostico"
+                ] = diagnosticar_pregunta(
+                    pregunta,
+                    profundidad=3,
+                )
+
+            except Exception as exc:
+
+                contexto[
+                    "error"
+                ] = str(
+                    exc
+                )
+
+    return render(
+        request,
+        "ia_local/diagnostico.html",
+        contexto,
+    )
