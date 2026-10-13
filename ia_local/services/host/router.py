@@ -2,11 +2,23 @@ from __future__ import annotations
 
 from typing import Any
 
+from .ejecutor_datos import (
+    ejecutar_plan_datos,
+)
 from .intencion import (
     detectar_intencion,
 )
+from .interprete_datos import (
+    interpretar_consulta_datos,
+)
 from .respuesta_llm import (
     responder_pregunta_host,
+)
+from .resolvedor_entidad_datos import (
+    resolver_entidad_datos,
+)
+from .validador_plan_datos import (
+    validar_plan_datos,
 )
 
 
@@ -23,14 +35,13 @@ def enrutar_pregunta(
     """
     Determina el destino funcional de una pregunta.
 
-    Destinos actuales:
+    Destinos:
 
         host
             Preguntas estructurales sobre el proyecto.
 
         datos
-            Consulta de datos detectada.
-            HOST015 implementará su ejecución.
+            Consultas de datos mediante ORM portable seguro.
 
         ninguno
             Intención insuficiente o desconocida.
@@ -73,6 +84,66 @@ def enrutar_pregunta(
 
 
 # ============================================================
+# RESPUESTA DE DATOS
+# ============================================================
+
+
+def _respuesta_texto_datos(
+    ejecucion: dict[str, Any],
+) -> str:
+    """
+    Construye una respuesta determinista a partir del resultado
+    ORM ya validado y ejecutado.
+
+    No interpreta ni inventa información.
+    """
+
+    operacion = ejecucion.get(
+        "operacion"
+    )
+
+    modelo = ejecucion.get(
+        "modelo",
+        "",
+    )
+
+    if operacion == "contar":
+
+        total = ejecucion.get(
+            "total",
+            0,
+        )
+
+        return (
+            f"Se encontraron {total} registros "
+            f"en {modelo} para la consulta solicitada."
+        )
+
+    if operacion == "listar":
+
+        total_devuelto = ejecucion.get(
+            "total_devuelto",
+            0,
+        )
+
+        if total_devuelto == 0:
+
+            return (
+                "La consulta se ejecutó correctamente, "
+                f"pero no devolvió registros de {modelo}."
+            )
+
+        return (
+            "La consulta se ejecutó correctamente y devolvió "
+            f"{total_devuelto} registros de {modelo}."
+        )
+
+    return (
+        "La consulta de datos se ejecutó correctamente."
+    )
+
+
+# ============================================================
 # PROCESAMIENTO PÚBLICO
 # ============================================================
 
@@ -85,11 +156,15 @@ def procesar_pregunta(
     """
     Punto público único de ia_local.
 
-    HOST014:
-        intención + routing
+    Flujo:
 
-    HOST015:
-        incorporará ejecución ORM portable para destino=datos.
+        HOST014
+            intención + routing
+
+        HOST015
+            interpretación declarativa
+            validación estricta
+            ejecución ORM segura
     """
 
     ruta = enrutar_pregunta(
@@ -200,22 +275,430 @@ def procesar_pregunta(
             "entidad"
         )
 
-        if entidad:
+        entidad_validada = bool(
+            intencion.get(
+                "validado"
+            )
+        )
 
-            respuesta = (
-                "Consulta de datos detectada para "
-                f"{entidad}. "
-                "La ejecución ORM portable se incorporará "
-                "en IA-HOST015."
+        resolucion_entidad = None
+
+        # HOST014 puede reconocer correctamente que la pregunta
+        # es de datos sin poder demostrar todavía qué modelo
+        # representa una expresión natural como "equipos".
+        #
+        # En ese caso intentamos una segunda resolución usando
+        # únicamente catálogo real y valores observados del host.
+
+        if (
+            not entidad
+            or not entidad_validada
+        ):
+
+            resolucion_entidad = (
+                resolver_entidad_datos(
+                    pregunta
+                )
             )
 
-        else:
+            if resolucion_entidad.get(
+                "resuelto"
+            ):
+
+                entidad = (
+                    resolucion_entidad.get(
+                        "entidad"
+                    )
+                )
+
+                entidad_validada = True
+
+                # Conservamos el diagnóstico de HOST014,
+                # pero enriquecemos la intención efectiva con
+                # la entidad demostrada posteriormente.
+
+                intencion = {
+                    **intencion,
+
+                    "entidad":
+                        entidad,
+
+                    "validado":
+                        True,
+
+                    "resolucion_entidad_datos":
+                        resolucion_entidad,
+                }
+
+        # ----------------------------------------------------
+        # 1. ENTIDAD
+        # ----------------------------------------------------
+
+        if (
+            not entidad
+            or not entidad_validada
+        ):
+
+            return {
+                "ok":
+                    False,
+
+                "pregunta":
+                    pregunta,
+
+                "destino":
+                    destino,
+
+                "intencion":
+                    intencion,
+
+                "llm_invocado":
+                    bool(
+                        intencion.get(
+                            "llm_invocado"
+                        )
+                    ),
+
+                "respuesta": (
+                    "Se detectó una consulta de datos, pero "
+                    "no existe una entidad suficientemente "
+                    "validada para ejecutarla."
+                ),
+
+                "respuesta_estructurada": {
+                    "fase":
+                        "entidad",
+
+                    "ejecutado":
+                        False,
+
+                    "entidad":
+                        entidad,
+
+                    "validado":
+                        entidad_validada,
+                },
+            }
+
+        # ----------------------------------------------------
+        # 2. INTERPRETACIÓN
+        # ----------------------------------------------------
+
+        interpretacion = (
+            interpretar_consulta_datos(
+                pregunta,
+                modelo=entidad,
+            )
+        )
+
+        llm_invocado = bool(
+            intencion.get(
+                "llm_invocado"
+            )
+            or interpretacion.get(
+                "llm_invocado"
+            )
+        )
+
+        if not interpretacion.get(
+            "ok"
+        ):
+
+            return {
+                "ok":
+                    False,
+
+                "pregunta":
+                    pregunta,
+
+                "destino":
+                    destino,
+
+                "intencion":
+                    intencion,
+
+                "llm_invocado":
+                    llm_invocado,
+
+                "respuesta": (
+                    "No fue posible interpretar la consulta "
+                    "de datos de forma segura."
+                ),
+
+                "respuesta_estructurada": {
+                    "fase":
+                        "interpretacion",
+
+                    "ejecutado":
+                        False,
+
+                    "entidad":
+                        entidad,
+
+                    "interpretacion":
+                        interpretacion,
+                },
+
+                "interpretacion_datos":
+                    interpretacion,
+            }
+
+        propuesta = interpretacion.get(
+            "propuesta"
+        )
+
+        if not isinstance(
+            propuesta,
+            dict,
+        ):
+
+            return {
+                "ok":
+                    False,
+
+                "pregunta":
+                    pregunta,
+
+                "destino":
+                    destino,
+
+                "intencion":
+                    intencion,
+
+                "llm_invocado":
+                    llm_invocado,
+
+                "respuesta": (
+                    "La interpretación no produjo un plan "
+                    "de datos válido."
+                ),
+
+                "respuesta_estructurada": {
+                    "fase":
+                        "interpretacion",
+
+                    "ejecutado":
+                        False,
+
+                    "entidad":
+                        entidad,
+
+                    "interpretacion":
+                        interpretacion,
+                },
+            }
+
+        # ----------------------------------------------------
+        # 3. VALIDACIÓN
+        # ----------------------------------------------------
+
+        validacion = validar_plan_datos(
+            propuesta
+        )
+
+        if not validacion.get(
+            "ok"
+        ):
+
+            errores = validacion.get(
+                "errores",
+                [],
+            )
 
             respuesta = (
-                "Se detectó una consulta de datos, pero "
-                "todavía no existe una entidad suficientemente "
-                "validada para ejecutarla."
+                "La consulta fue interpretada, pero no puede "
+                "ejecutarse de forma segura."
             )
+
+            if errores:
+
+                respuesta += (
+                    " "
+                    + " ".join(
+                        str(
+                            error
+                        )
+                        for error
+                        in errores
+                    )
+                )
+
+            return {
+                "ok":
+                    False,
+
+                "pregunta":
+                    pregunta,
+
+                "destino":
+                    destino,
+
+                "intencion":
+                    intencion,
+
+                "llm_invocado":
+                    llm_invocado,
+
+                "respuesta":
+                    respuesta,
+
+                "respuesta_estructurada": {
+                    "fase":
+                        "validacion",
+
+                    "ejecutado":
+                        False,
+
+                    "entidad":
+                        entidad,
+
+                    "propuesta":
+                        propuesta,
+
+                    "validacion":
+                        validacion,
+                },
+
+                "interpretacion_datos":
+                    interpretacion,
+
+                "validacion_datos":
+                    validacion,
+            }
+
+        plan = validacion.get(
+            "plan"
+        )
+
+        if not isinstance(
+            plan,
+            dict,
+        ):
+
+            return {
+                "ok":
+                    False,
+
+                "pregunta":
+                    pregunta,
+
+                "destino":
+                    destino,
+
+                "intencion":
+                    intencion,
+
+                "llm_invocado":
+                    llm_invocado,
+
+                "respuesta": (
+                    "La validación no produjo un plan "
+                    "ejecutable."
+                ),
+
+                "respuesta_estructurada": {
+                    "fase":
+                        "validacion",
+
+                    "ejecutado":
+                        False,
+
+                    "entidad":
+                        entidad,
+
+                    "validacion":
+                        validacion,
+                },
+            }
+
+        # ----------------------------------------------------
+        # 4. EJECUCIÓN ORM
+        # ----------------------------------------------------
+
+        ejecucion = ejecutar_plan_datos(
+            plan
+        )
+
+        if not ejecucion.get(
+            "ok"
+        ):
+
+            return {
+                "ok":
+                    False,
+
+                "pregunta":
+                    pregunta,
+
+                "destino":
+                    destino,
+
+                "intencion":
+                    intencion,
+
+                "llm_invocado":
+                    llm_invocado,
+
+                "respuesta": (
+                    "El plan fue validado, pero no fue posible "
+                    "ejecutar la consulta de datos."
+                ),
+
+                "respuesta_estructurada": {
+                    "fase":
+                        ejecucion.get(
+                            "fase",
+                            "ejecucion",
+                        ),
+
+                    "ejecutado":
+                        bool(
+                            ejecucion.get(
+                                "ejecutado"
+                            )
+                        ),
+
+                    "entidad":
+                        entidad,
+
+                    "ejecucion":
+                        ejecucion,
+                },
+
+                "interpretacion_datos":
+                    interpretacion,
+
+                "validacion_datos":
+                    validacion,
+
+                "ejecucion_datos":
+                    ejecucion,
+            }
+
+        # ----------------------------------------------------
+        # 5. RESPUESTA FINAL
+        # ----------------------------------------------------
+
+        respuesta = _respuesta_texto_datos(
+            ejecucion
+        )
+
+        respuesta_estructurada = {
+            "fase":
+                "ejecucion",
+
+            "ejecutado":
+                True,
+
+            "entidad":
+                entidad,
+
+            "plan":
+                plan,
+
+            "ejecucion":
+                ejecucion,
+        }
 
         return {
             "ok":
@@ -231,27 +714,22 @@ def procesar_pregunta(
                 intencion,
 
             "llm_invocado":
-                bool(
-                    intencion.get(
-                        "llm_invocado"
-                    )
-                ),
+                llm_invocado,
 
             "respuesta":
                 respuesta,
 
-            "respuesta_estructurada": {
-                "estado":
-                    "pendiente_ejecutor_datos",
+            "respuesta_estructurada":
+                respuesta_estructurada,
 
-                "entidad":
-                    entidad,
+            "interpretacion_datos":
+                interpretacion,
 
-                "validado":
-                    intencion.get(
-                        "validado"
-                    ),
-            },
+            "validacion_datos":
+                validacion,
+
+            "ejecucion_datos":
+                ejecucion,
         }
 
     # --------------------------------------------------------
