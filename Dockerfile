@@ -1,20 +1,20 @@
-# Dockerfile para producción - Condocdat
+# Producción - transmitt-ia-l / ia_local
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    JAVA_HOME=/usr/lib/jvm/default-java
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Usuario no root con UID fijo para que los volúmenes (data, media, staticfiles) tengan permisos correctos en el host
-RUN groupadd -r django -g 1000 && useradd -r -u 1000 -g django django
+# Usuario no root con UID/GID estable para los volúmenes propios del proyecto.
+RUN groupadd -r django -g 1000 \
+    && useradd -r -u 1000 -g django django
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    postgresql-client \
-    default-jre-headless \
-    libreoffice-calc-nogui \
+# Dependencias mínimas del proyecto Django/PostgreSQL.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gcc \
+        postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -24,8 +24,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app/
 
-RUN chmod +x /app/docker-entrypoint.sh
-RUN chown -R django:django /app
+RUN chmod +x /app/docker-entrypoint.sh \
+    && chown -R django:django /app
 
 USER django
 

@@ -3,58 +3,47 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
+
     container_name: transmitt_ia_l_app
     restart: unless-stopped
 
-    # Permite que el contenedor Django alcance Ollama instalado en el HOST.
-    # host.docker.internal resolverá hacia el gateway del host Docker.
+    # Permite que ia_local alcance Ollama instalado en el host VPS.
+    # En Linux, host-gateway resuelve host.docker.internal hacia el host Docker.
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-    # Las variables ${...} se resuelven en el HOST al ejecutar docker compose.
     environment:
-      - DEBUG=False
-      - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-transmitt-ia-l.netgogo.cl}
-      - DJANGO_SETTINGS_MODULE=transmitt_ia_l.settings
+      DEBUG: "False"
+      SECRET_KEY: "${SECRET_KEY}"
+      ALLOWED_HOSTS: "${ALLOWED_HOSTS:-transmitt-ia-l.netgogo.cl}"
+      DJANGO_SETTINGS_MODULE: "transmitt_ia_l.settings"
 
-      # PostgreSQL: usa exactamente la misma base de datos de CONDOCdat.
-      - DB_ENGINE=${DB_ENGINE:-django.db.backends.postgresql}
-      - DB_NAME=${DB_NAME:-condocdat_db}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT:-5432}
+      # PostgreSQL del proyecto anfitrión.
+      # No se fuerza ningún nombre de base de datos perteneciente a Condocdat.
+      DB_ENGINE: "${DB_ENGINE:-django.db.backends.postgresql}"
+      DB_NAME: "${DB_NAME}"
+      DB_USER: "${DB_USER}"
+      DB_PASSWORD: "${DB_PASSWORD}"
+      DB_HOST: "${DB_HOST}"
+      DB_PORT: "${DB_PORT:-5432}"
 
-      # Ollama instalado en el host del VPS.
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b-instruct-2507-q4_K_M}
+      # Configuración que consume realmente ia_local/services/host/respuesta_llm.py.
+      IA_LOCAL_OLLAMA_URL: "${IA_LOCAL_OLLAMA_URL:-http://host.docker.internal:11434}"
+      IA_LOCAL_OLLAMA_MODEL: "${IA_LOCAL_OLLAMA_MODEL:-qwen3:4b-instruct-2507-q4_K_M}"
+      IA_LOCAL_OLLAMA_TIMEOUT: "${IA_LOCAL_OLLAMA_TIMEOUT:-180}"
 
-      - TZ=America/Santiago
-
-      # Correo: conserva la misma estrategia de CONDOCdat.
-      - EMAIL_HOST=${EMAIL_HOST:-smtp.office365.com}
-      - EMAIL_PORT=${EMAIL_PORT:-587}
-      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
-      - EMAIL_HOST_USER=${EMAIL_HOST_USER:-max.gonzalez@propamat.cl}
-      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
-      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL:-max.gonzalez@propamat.cl}
-      - EMAIL_TIMEOUT=${EMAIL_TIMEOUT:-90}
+      TZ: "America/Santiago"
 
     volumes:
-      # Datos propios del contenedor IA, si alguna parte del proyecto los utiliza.
-      - ./data:/app/data
-
-      # Compartimos los archivos reales de CONDOCdat en solo lectura.
-      # Desde /home/max/projects/transmitt-ia-l, ../condocdat/media apunta a:
-      # /home/max/projects/condocdat/media
-      - ../condocdat/media:/app/media:ro
-
-      # Staticfiles propios de transmitt-ia-l.
+      # Únicamente archivos estáticos generados por este proyecto.
       - ./staticfiles:/app/staticfiles
 
     networks:
+      # Traefik publica el subdominio HTTPS.
       - traefik_default
+
+      # Red de infraestructura necesaria para alcanzar PostgreSQL cuando
+      # DB_HOST es un contenedor externo. No monta ni comparte archivos.
       - myproject_netgogo_default
 
     labels:
@@ -70,5 +59,6 @@ services:
 networks:
   traefik_default:
     external: true
+
   myproject_netgogo_default:
     external: true

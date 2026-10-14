@@ -1,37 +1,35 @@
 #!/bin/bash
 set -e
 
+echo "🚀 Iniciando Transmitt IA Local..."
 
-echo "🚀 Iniciando aplicación Condocdat..."
-echo "🚀 Iniciando aplicación Transmitt-ia-l..."
-
-
-mkdir -p /app/data
-mkdir -p /app/media
-mkdir -p /app/media/equipos/2026/04
+# Sólo directorios propios que el despliegue necesita.
 mkdir -p /app/staticfiles
-mkdir -p /app/doc
 
-if [ "$DB_ENGINE" = "django.db.backends.postgresql" ]; then
-    echo "⏳ Esperando a PostgreSQL..."
-    python -c "
+if [ "${DB_ENGINE:-}" = "django.db.backends.postgresql" ]; then
+    if [ -z "${DB_HOST:-}" ] || [ -z "${DB_PORT:-}" ]; then
+        echo "❌ DB_HOST y DB_PORT son obligatorios para PostgreSQL."
+        exit 1
+    fi
+
+    echo "⏳ Esperando a PostgreSQL en ${DB_HOST}:${DB_PORT}..."
+
+    python - <<'PY'
+import os
 import socket
-import sys
 import time
-host = '${DB_HOST}'
-port = int('${DB_PORT}')
+
+host = os.environ["DB_HOST"]
+port = int(os.environ.get("DB_PORT", "5432"))
+
 while True:
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(1)
-        result = sock.connect_ex((host, port))
-        sock.close()
-        if result == 0:
+        with socket.create_connection((host, port), timeout=1):
             break
-    except:
-        pass
-    time.sleep(0.5)
-"
+    except OSError:
+        time.sleep(0.5)
+PY
+
     echo "✅ PostgreSQL está listo"
 fi
 
