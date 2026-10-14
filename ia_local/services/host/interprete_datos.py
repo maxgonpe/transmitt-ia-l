@@ -377,10 +377,10 @@ def _construir_contexto(
         f"{modelo['tabla']}\n\n"
 
         "CAMPOS CONSULTABLES REALES:\n"
-        f"{json.dumps(campos, ensure_ascii=False, separators=(",", ":"))}\n\n"
+        f"{json.dumps(campos, ensure_ascii=False, separators=(',', ':'))}\n\n"
 
         "VALORES REALES OBSERVADOS EN CAMPOS CATEGORICOS:\n"
-        f"{json.dumps(perfiles, ensure_ascii=False, separators=(",", ":"))}\n\n"
+        f"{json.dumps(perfiles, ensure_ascii=False, separators=(',', ':'))}\n\n"
 
         "OPERACIONES PERMITIDAS EN ESTA FASE:\n"
         "- listar\n"
