@@ -467,11 +467,31 @@
                 class="respuesta-texto"
             ></div>
 
+            <div id="bloqueRegistros" style="display: none;">
+
+                <h3 class="subtitulo-resultado">
+                    Registros devueltos (JSON)
+                </h3>
+
+                <pre id="registrosJson"></pre>
+
+            </div>
+
             <h3 class="subtitulo-resultado">
-                JSON completo
+                Salida JSON normalizada
             </h3>
 
             <pre id="respuestaJson"></pre>
+
+            <details style="margin-top: 18px;">
+
+                <summary style="cursor: pointer; font-weight: bold;">
+                    Detalle técnico HOST
+                </summary>
+
+                <pre id="jsonTecnico"></pre>
+
+            </details>
 
         </section>
 
@@ -482,67 +502,8 @@
 
 <script>
 
-    let ultimaRespuestaEstructurada =
-        null;
-
-    let ultimaRespuestaCompleta =
-        null;
-
-
-    function getCookie(
-        name
-    ) {
-
-        let cookieValue =
-            null;
-
-        if (
-            document.cookie &&
-            document.cookie !== ""
-        ) {
-
-            const cookies =
-                document.cookie.split(
-                    ";"
-                );
-
-            for (
-                let i = 0;
-                i < cookies.length;
-                i++
-            ) {
-
-                const cookie =
-                    cookies[
-                        i
-                    ].trim();
-
-                if (
-                    cookie.substring(
-                        0,
-                        name.length + 1
-                    ) ===
-                    (
-                        name + "="
-                    )
-                ) {
-
-                    cookieValue =
-                        decodeURIComponent(
-                            cookie.substring(
-                                name.length + 1
-                            )
-                        );
-
-                    break;
-                }
-
-            }
-
-        }
-
-        return cookieValue;
-    }
+    let ultimaSalida = null;
+    let ultimaRespuestaTecnica = null;
 
 
     function mostrarEstado(
@@ -555,138 +516,182 @@
                 "estado"
             );
 
-        estado.className =
-            tipo;
-
-        estado.textContent =
-            mensaje;
-
+        estado.className = tipo;
+        estado.textContent = mensaje;
     }
 
 
-    function prepararExportaciones(
-        pregunta,
-        respuesta
-    ) {
-
-        const json =
-            JSON.stringify(
-                respuesta
-            );
-
-        document
-            .getElementById(
-                "preguntaExcel"
-            )
-            .value =
-            pregunta;
-
-        document
-            .getElementById(
-                "preguntaPdf"
-            )
-            .value =
-            pregunta;
-
-        document
-            .getElementById(
-                "respuestaExcel"
-            )
-            .value =
-            json;
-
-        document
-            .getElementById(
-                "respuestaPdf"
-            )
-            .value =
-            json;
+    function desactivarExportaciones() {
 
         document
             .getElementById(
                 "exportaciones"
             )
-            .style.display =
-            "flex";
+            .style.display = "none";
 
-    }
-
-
-
-function limpiarConsulta() {
-
-    document
-        .getElementById(
-            "pregunta"
-        )
-        .value = "";
-
-    document
-        .getElementById(
-            "respuestaTexto"
-        )
-        .textContent = "";
-
-    document
-        .getElementById(
-            "respuestaJson"
-        )
-        .textContent = "";
-
-    document
-        .getElementById(
-            "bloqueResultado"
-        )
-        .style.display = "none";
-
-    document
-        .getElementById(
-            "exportaciones"
-        )
-        .style.display = "none";
-
-    document
-        .getElementById(
-            "estado"
-        )
-        .className = "";
-
-    document
-        .getElementById(
-            "estado"
-        )
-        .textContent = "";
-
-    for (const id of [
-        "origen",
-        "tema",
-        "operacion",
-        "total",
-    ]) {
         document
-            .getElementById(id)
-            .textContent = "-";
+            .getElementById(
+                "preguntaExcel"
+            )
+            .value = "";
+
+        document
+            .getElementById(
+                "preguntaPdf"
+            )
+            .value = "";
+
+        document
+            .getElementById(
+                "respuestaExcel"
+            )
+            .value = "";
+
+        document
+            .getElementById(
+                "respuestaPdf"
+            )
+            .value = "";
     }
 
-    ultimaRespuestaEstructurada = null;
-    ultimaRespuestaCompleta = null;
+
+    function prepararExportaciones(
+        pregunta,
+        salida
+    ) {
+
+        if (
+            !salida ||
+            typeof salida !== "object"
+        ) {
+            desactivarExportaciones();
+            return;
+        }
+
+        const json = JSON.stringify(
+            salida
+        );
+
+        document
+            .getElementById(
+                "preguntaExcel"
+            )
+            .value = pregunta;
+
+        document
+            .getElementById(
+                "preguntaPdf"
+            )
+            .value = pregunta;
+
+        document
+            .getElementById(
+                "respuestaExcel"
+            )
+            .value = json;
+
+        document
+            .getElementById(
+                "respuestaPdf"
+            )
+            .value = json;
+
+        document
+            .getElementById(
+                "exportaciones"
+            )
+            .style.display = "flex";
+    }
+
+
+    function limpiarConsulta() {
+
+        document
+            .getElementById(
+                "pregunta"
+            )
+            .value = "";
+
+        document
+            .getElementById(
+                "respuestaTexto"
+            )
+            .textContent = "";
+
+        document
+            .getElementById(
+                "respuestaJson"
+            )
+            .textContent = "";
+
+        document
+            .getElementById(
+                "jsonTecnico"
+            )
+            .textContent = "";
+
+        document
+            .getElementById(
+                "registrosJson"
+            )
+            .textContent = "";
+
+        document
+            .getElementById(
+                "bloqueRegistros"
+            )
+            .style.display = "none";
+
+        document
+            .getElementById(
+                "bloqueResultado"
+            )
+            .style.display = "none";
+
+        desactivarExportaciones();
+
+        document
+            .getElementById(
+                "estado"
+            )
+            .className = "";
+
+        document
+            .getElementById(
+                "estado"
+            )
+            .textContent = "";
+
+        for (const id of [
+            "origen",
+            "tema",
+            "operacion",
+            "total",
+        ]) {
+            document
+                .getElementById(id)
+                .textContent = "-";
+        }
+
+        ultimaSalida = null;
+        ultimaRespuestaTecnica = null;
+
+        document
+            .getElementById(
+                "pregunta"
+            )
+            .focus();
+    }
+
 
     document
         .getElementById(
-            "pregunta"
+            "btnLimpiar"
         )
-        .focus();
-}
-
-
-document
-    .getElementById(
-        "btnLimpiar"
-    )
-    .addEventListener(
-        "click",
-        limpiarConsulta
-    );
+        .addEventListener(
+            "click",
+            limpiarConsulta
+        );
 
 
     document
@@ -701,7 +706,6 @@ document
 
                 event.preventDefault();
 
-
                 const pregunta =
                     document
                         .getElementById(
@@ -710,19 +714,13 @@ document
                         .value
                         .trim();
 
-
-                if (
-                    !pregunta
-                ) {
-
+                if (!pregunta) {
                     mostrarEstado(
                         "error",
                         "Escribe una pregunta."
                     );
-
                     return;
                 }
-
 
                 const boton =
                     document
@@ -730,24 +728,19 @@ document
                             "btnConsultar"
                         );
 
-
-                boton.disabled =
-                    true;
-
+                boton.disabled = true;
+                desactivarExportaciones();
 
                 document
                     .getElementById(
-                        "exportaciones"
+                        "bloqueResultado"
                     )
-                    .style.display =
-                    "none";
-
+                    .style.display = "none";
 
                 mostrarEstado(
                     "cargando",
                     "Procesando consulta..."
                 );
-
 
                 try {
 
@@ -775,86 +768,148 @@ document
                         csrfInput.value
                     );
 
-
                     const respuestaHttp =
                         await fetch(
                             "{% url 'ia_local:consultar' %}",
                             {
-                                method:
-                                    "POST",
-
-                                body:
-                                    datos
+                                method: "POST",
+                                body: datos,
+                                headers: {
+                                    "X-Requested-With":
+                                        "XMLHttpRequest"
+                                }
                             }
                         );
 
-                    const data =
-                        await respuestaHttp
-                            .json();
+                    // Primero se lee como texto para no ocultar
+                    // errores HTML de Django detrás de un fallo
+                    // de response.json().
+                    const contenido =
+                        await respuestaHttp.text();
 
+                    const contentType =
+                        respuestaHttp.headers.get(
+                            "content-type"
+                        ) || "";
+
+                    if (
+                        !contentType.includes(
+                            "application/json"
+                        )
+                    ) {
+                        console.error(
+                            "Respuesta no JSON:",
+                            contenido
+                        );
+
+                        throw new Error(
+                            "El servidor no devolvió JSON " +
+                            "(HTTP " +
+                            respuestaHttp.status +
+                            "). Revisa el log de Django."
+                        );
+                    }
+
+                    let data;
+
+                    try {
+                        data = JSON.parse(
+                            contenido
+                        );
+                    }
+                    catch (errorJSON) {
+                        console.error(
+                            "JSON inválido:",
+                            contenido
+                        );
+
+                        throw new Error(
+                            "El servidor devolvió una respuesta JSON inválida."
+                        );
+                    }
 
                     if (
                         !respuestaHttp.ok ||
-                        !data.ok
+                        data.ok === false
                     ) {
-
                         throw new Error(
                             data.error ||
                             "No fue posible procesar la consulta."
                         );
-
                     }
 
+                    if (
+                        !data.salida ||
+                        typeof data.salida !== "object"
+                    ) {
+                        throw new Error(
+                            "La consulta fue procesada, pero no se recibió " +
+                            "la salida normalizada esperada."
+                        );
+                    }
 
-                    ultimaRespuestaEstructurada =
-                        data.respuesta_estructurada;
+                    ultimaSalida = data.salida;
+                    ultimaRespuestaTecnica =
+                        data.json_completo || null;
 
-                    ultimaRespuestaCompleta =
-                        data.json_completo ||
-                        data.respuesta_estructurada ||
-                        data;
-
+                    const registros =
+                        Array.isArray(
+                            ultimaSalida.resultados
+                        )
+                        ? ultimaSalida.resultados
+                        : [];
 
                     document
                         .getElementById(
                             "origen"
                         )
                         .textContent =
-                        data.origen || "-";
-
+                        ultimaSalida.origen || "-";
 
                     document
                         .getElementById(
                             "tema"
                         )
                         .textContent =
-                        data.tema || "-";
-
+                        ultimaSalida.destino || "-";
 
                     document
                         .getElementById(
                             "operacion"
                         )
                         .textContent =
-                        data.operacion || "-";
-
+                        ultimaSalida.operacion || "-";
 
                     document
                         .getElementById(
                             "total"
                         )
                         .textContent =
-                        data.total ?? 0;
+                        ultimaSalida.total ?? registros.length;
 
-
-                    document
-                        .getElementById(
+                    const respuestaTexto =
+                        document.getElementById(
                             "respuestaTexto"
-                        )
-                        .textContent =
-                        data.respuesta ||
-                        "Consulta procesada correctamente.";
+                        );
 
+                    if (registros.length > 0) {
+                        const resumenHumano =
+                            ultimaSalida.respuesta ||
+                            "Consulta procesada correctamente.";
+
+                        respuestaTexto.textContent =
+                            resumenHumano +
+                            "\n\n" +
+                            JSON.stringify(
+                                registros,
+                                null,
+                                2
+                            );
+                    } else {
+                        respuestaTexto.textContent =
+                            ultimaSalida.respuesta ||
+                            "Consulta procesada correctamente.";
+                    }
 
                     document
                         .getElementById(
@@ -862,66 +917,88 @@ document
                         )
                         .textContent =
                         JSON.stringify(
-                            ultimaRespuestaCompleta,
+                            ultimaSalida,
                             null,
                             2
                         );
 
+                    document
+                        .getElementById(
+                            "jsonTecnico"
+                        )
+                        .textContent =
+                        JSON.stringify(
+                            ultimaRespuestaTecnica,
+                            null,
+                            2
+                        );
+
+                    const bloqueRegistros =
+                        document.getElementById(
+                            "bloqueRegistros"
+                        );
+
+                    const registrosJson =
+                        document.getElementById(
+                            "registrosJson"
+                        );
+
+                    if (registros.length > 0) {
+                        registrosJson.textContent =
+                            JSON.stringify(
+                                registros,
+                                null,
+                                2
+                            );
+
+                        bloqueRegistros.style.display =
+                            "block";
+                    }
+                    else {
+                        registrosJson.textContent = "";
+                        bloqueRegistros.style.display =
+                            "none";
+                    }
 
                     document
                         .getElementById(
                             "bloqueResultado"
                         )
-                        .style.display =
-                        "block";
+                        .style.display = "block";
 
-
+                    // PDF y Excel reciben exactamente el mismo
+                    // contrato que se muestra en pantalla.
                     prepararExportaciones(
                         pregunta,
-                        ultimaRespuestaCompleta
+                        ultimaSalida
                     );
-
 
                     mostrarEstado(
                         "ok",
                         "Consulta procesada correctamente."
                     );
-
                 }
+                catch (error) {
 
-                catch (
-                    error
-                ) {
-
-                    ultimaRespuestaEstructurada =
-                        null;
-
-                    ultimaRespuestaCompleta =
-                        null;
-
+                    ultimaSalida = null;
+                    ultimaRespuestaTecnica = null;
 
                     document
                         .getElementById(
                             "bloqueResultado"
                         )
-                        .style.display =
-                        "none";
+                        .style.display = "none";
 
+                    desactivarExportaciones();
 
                     mostrarEstado(
                         "error",
                         error.message
                     );
-
                 }
-
                 finally {
-
-                    boton.disabled =
-                        false;
-
+                    boton.disabled = false;
                 }
-
             }
         );
 

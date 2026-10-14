@@ -355,22 +355,32 @@ def ejecutar_plan_datos(
                 *orden_orm
             )
 
-        limite = min(
-            plan_seguro[
-                "limite"
-            ],
-            LIMITE_MAXIMO,
+        limite_plan = plan_seguro.get(
+            "limite"
         )
+
+        if limite_plan is None:
+            limite = None
+        else:
+            limite = min(
+                limite_plan,
+                LIMITE_MAXIMO,
+            )
 
         campos = _campos_salida(
             modelo_django
         )
 
-        filas = list(
-            queryset.values(
-                *campos
-            )[:limite]
+        queryset_valores = queryset.values(
+            *campos
         )
+
+        if limite is None:
+            filas = list(queryset_valores)
+        else:
+            filas = list(
+                queryset_valores[:limite]
+            )
 
         resultados = [
             _serializar_fila(

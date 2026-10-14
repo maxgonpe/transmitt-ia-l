@@ -776,40 +776,34 @@ def validar_plan_datos(
     # LÍMITE
     # --------------------------------------------------------
 
-    try:
+    limite_crudo = propuesta.get(
+        "limite",
+        LIMITE_PREDETERMINADO,
+    )
 
-        limite = int(
-            propuesta.get(
-                "limite",
-                LIMITE_PREDETERMINADO,
+    if limite_crudo is None:
+        limite = None
+    else:
+        try:
+            limite = int(limite_crudo)
+        except (TypeError, ValueError):
+            errores.append(
+                "El límite no es un entero válido."
             )
-        )
+            limite = LIMITE_PREDETERMINADO
 
-    except (
-        TypeError,
-        ValueError,
-    ):
-
-        errores.append(
-            "El límite no es un entero válido."
-        )
-
-        limite = LIMITE_PREDETERMINADO
-
-    if limite < 1:
-
-        errores.append(
-            "El límite debe ser mayor que cero."
-        )
-
-    if limite > LIMITE_MAXIMO:
-
-        errores.append(
-            (
-                f"El límite máximo permitido "
-                f"es {LIMITE_MAXIMO}."
+        if limite < 1:
+            errores.append(
+                "El límite debe ser mayor que cero."
             )
-        )
+
+        if limite > LIMITE_MAXIMO:
+            errores.append(
+                (
+                    f"El límite máximo permitido "
+                    f"es {LIMITE_MAXIMO}."
+                )
+            )
 
     # --------------------------------------------------------
     # CONDICIONES NO RESUELTAS

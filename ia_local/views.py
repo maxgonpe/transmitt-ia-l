@@ -32,6 +32,9 @@ from .models import IAReglaSemantica
 from .services.host.router import (
     procesar_pregunta,
 )
+from .services.host.salida import (
+    normalizar_salida,
+)
 from .services.host.diagnostico import (
     diagnosticar_pregunta,
 )
@@ -52,8 +55,9 @@ def _ejecutar_consulta_ia(
     """
     Punto único de entrada para web/API.
 
-    La view no conoce inspectores, Ollama ni motores internos.
-    Toda decisión se delega al router portable.
+    El router HOST conserva toda la lógica interna. Aquí sólo
+    construimos una salida pública estable para la interfaz y
+    las exportaciones.
     """
 
     resultado = procesar_pregunta(
@@ -94,67 +98,57 @@ def _ejecutar_consulta_ia(
         or {}
     )
 
-    ejecucion = (
-        resultado.get(
-            "ejecucion_datos"
-        )
-        or respuesta_estructurada.get(
-            "ejecucion"
-        )
-        or {}
+    salida_publica = normalizar_salida(
+        resultado
     )
 
     diagnostico = {
         "origen":
-            intencion.get(
+            salida_publica.get(
                 "origen"
             ),
 
         "tema":
-            resultado.get(
+            salida_publica.get(
                 "destino"
             ),
 
         "modelo":
-            ejecucion.get(
+            salida_publica.get(
                 "modelo"
-            )
-            or intencion.get(
-                "entidad"
             ),
 
         "operacion":
-            ejecucion.get(
+            salida_publica.get(
                 "operacion"
-            )
-            or intencion.get(
-                "accion"
             ),
 
         "cantidad":
             None,
 
         "orden":
-            None,
+            salida_publica.get(
+                "orden"
+            ),
 
         "filtros_orm":
-            ejecucion.get(
+            salida_publica.get(
                 "filtros"
             ),
 
         "total":
-            ejecucion.get(
-                "total_devuelto",
-                ejecucion.get(
-                    "total"
-                )
+            salida_publica.get(
+                "total"
             ),
 
         "limite":
-            limite,
+            salida_publica.get(
+                "limite"
+            )
+            or limite,
 
         "destino":
-            resultado.get(
+            salida_publica.get(
                 "destino"
             ),
 
@@ -174,7 +168,7 @@ def _ejecutar_consulta_ia(
             ),
 
         "llm_invocado":
-            resultado.get(
+            salida_publica.get(
                 "llm_invocado"
             ),
     }
@@ -186,16 +180,23 @@ def _ejecutar_consulta_ia(
         "diagnostico":
             diagnostico,
 
+        "salida":
+            salida_publica,
+
+        # Se conserva para diagnóstico y compatibilidad.
         "respuesta_estructurada":
             respuesta_estructurada,
 
+        "registros":
+            salida_publica.get(
+                "resultados",
+                [],
+            ),
+
         "respuesta_texto":
-            str(
-                resultado.get(
-                    "respuesta",
-                    ""
-                )
-                or ""
+            salida_publica.get(
+                "respuesta",
+                "",
             ),
 
         "router":
@@ -386,9 +387,19 @@ def consulta_ia_json(request):
                         "respuesta_texto"
                     ],
 
+                "salida":
+                    salida[
+                        "salida"
+                    ],
+
                 "respuesta_estructurada":
                     salida[
                         "respuesta_estructurada"
+                    ],
+
+                "registros":
+                    salida[
+                        "registros"
                     ],
 
                 "json_completo":
@@ -930,15 +941,10 @@ def _extraer_resultados(
     respuesta,
 ):
     """
-    Obtiene el listado principal de resultados soportando
-    tanto el contrato antiguo como HOST016.
+    Extrae filas del contrato público normalizado.
 
-    HOST016 puede entregar las filas en:
-
-        respuesta["ejecucion"]["resultados"]
-        respuesta["ejecucion_datos"]["resultados"]
-
-    La exportación nunca vuelve a ejecutar la consulta.
+    Mantiene una compatibilidad mínima con respuestas previas,
+    pero la interfaz nueva debe enviar siempre ``salida``.
     """
 
     if not isinstance(
@@ -947,12 +953,17 @@ def _extraer_resultados(
     ):
         return []
 
-    candidatos = [
-        respuesta.get(
-            "resultados"
-        ),
-    ]
+    resultados = respuesta.get(
+        "resultados"
+    )
 
+    if isinstance(
+        resultados,
+        list,
+    ):
+        return resultados
+
+    # Compatibilidad con el contrato HOST previo.
     for clave in (
         "ejecucion",
         "ejecucion_datos",
@@ -965,46 +976,15 @@ def _extraer_resultados(
             bloque,
             dict,
         ):
-            candidatos.append(
-                bloque.get(
-                    "resultados"
-                )
-            )
-
-    estructurada = respuesta.get(
-        "respuesta_estructurada"
-    )
-
-    if isinstance(
-        estructurada,
-        dict,
-    ):
-        candidatos.append(
-            estructurada.get(
+            resultados = bloque.get(
                 "resultados"
             )
-        )
 
-        ejecucion = estructurada.get(
-            "ejecucion"
-        )
-
-        if isinstance(
-            ejecucion,
-            dict,
-        ):
-            candidatos.append(
-                ejecucion.get(
-                    "resultados"
-                )
-            )
-
-    for resultados in candidatos:
-        if isinstance(
-            resultados,
-            list,
-        ):
-            return resultados
+            if isinstance(
+                resultados,
+                list,
+            ):
+                return resultados
 
     return []
 
@@ -1013,25 +993,30 @@ def _resumen_exportacion(
     respuesta,
 ):
     """
-    Construye un resumen compacto y portable para PDF/Excel.
-
-    Evita insertar estructuras enormes (evidencia, planes,
-    ejecución completa) dentro de una sola celda o Paragraph.
+    Construye el resumen desde el contrato público normalizado.
     """
-
-    resumen = []
 
     if not isinstance(
         respuesta,
         dict,
     ):
-        return resumen
+        return []
 
-    for clave in (
-        "destino",
-        "respuesta",
-        "llm_invocado",
-    ):
+    resumen = []
+
+    etiquetas = (
+        ("tipo", "Tipo"),
+        ("destino", "Destino"),
+        ("modelo", "Modelo"),
+        ("operacion", "Operación"),
+        ("tabla", "Tabla"),
+        ("total", "Total"),
+        ("limite", "Límite"),
+        ("llm_invocado", "LLM invocado"),
+        ("respuesta", "Respuesta"),
+    )
+
+    for clave, etiqueta in etiquetas:
         valor = respuesta.get(
             clave
         )
@@ -1039,64 +1024,12 @@ def _resumen_exportacion(
         if valor not in (
             None,
             "",
+            [],
+            {},
         ):
             resumen.append(
                 (
-                    clave,
-                    valor,
-                )
-            )
-
-    ejecucion = (
-        respuesta.get(
-            "ejecucion_datos"
-        )
-        or respuesta.get(
-            "ejecucion"
-        )
-        or {}
-    )
-
-    if not isinstance(
-        ejecucion,
-        dict,
-    ):
-        ejecucion = {}
-
-    if not ejecucion:
-        estructurada = respuesta.get(
-            "respuesta_estructurada"
-        )
-
-        if isinstance(
-            estructurada,
-            dict,
-        ):
-            ejecucion = (
-                estructurada.get(
-                    "ejecucion"
-                )
-                or {}
-            )
-
-    for clave in (
-        "modelo",
-        "operacion",
-        "tabla",
-        "total_devuelto",
-        "limite",
-    ):
-        valor = ejecucion.get(
-            clave
-        )
-
-        if valor not in (
-            None,
-            "",
-        ):
-            resumen.append(
-                (
-                    clave,
+                    etiqueta,
                     valor,
                 )
             )
@@ -1415,61 +1348,37 @@ def exportar_resultado_excel(
 
 def _columnas_pdf(
     resultados,
+    columnas_preferidas=None,
 ):
     """
-    El PDF no puede mostrar 15 o 20 columnas
-    cómodamente.
+    Selecciona columnas de forma portable.
 
-    Se priorizan campos funcionales.
+    Respeta primero la proyección informada por el ejecutor ORM
+    y nunca contiene nombres de campos propios de un host.
     """
 
-    disponibles = set(
-        _campos_resultados(
-            resultados
-        )
+    disponibles = _campos_resultados(
+        resultados
     )
 
-    prioridad = [
-        "item",
-        "archivo",
-        "fecha_archivo",
-        "estado",
-        "transmittal",
-        "transmittal_number",
-        "codigo_documento",
-
-        "id",
-        "code",
-        "number",
-        "title",
-        "revision",
-        "date",
-        "status",
-        "status_nombre",
-
-        "name",
-        "description",
-    ]
-
-    columnas = [
-        campo
-        for campo in prioridad
-        if campo in disponibles
-    ]
-
-    if columnas:
-
-        return columnas[
-            :7
+    if isinstance(
+        columnas_preferidas,
+        list,
+    ):
+        columnas = [
+            campo
+            for campo in columnas_preferidas
+            if campo in disponibles
         ]
 
-    return (
-        _campos_resultados(
-            resultados
-        )[
-            :7
-        ]
-    )
+        if columnas:
+            return columnas[
+                :7
+            ]
+
+    return disponibles[
+        :7
+    ]
 
 
 @staff_member_required
@@ -1686,7 +1595,10 @@ def exportar_resultado_pdf(
 
         columnas = (
             _columnas_pdf(
-                resultados
+                resultados,
+                respuesta.get(
+                    "columnas"
+                ),
             )
         )
 

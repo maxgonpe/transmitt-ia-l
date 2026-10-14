@@ -46,6 +46,38 @@ LIMITE_PREDETERMINADO = 20
 LIMITE_MAXIMO_PROPUESTO = 100
 
 
+EXPRESIONES_SIN_LIMITE = (
+    "todos",
+    "todas",
+    "todo",
+    "toda",
+    "sin limite",
+    "sin límite",
+    "completo",
+    "completa",
+    "completos",
+    "completas",
+    "la totalidad",
+)
+
+
+def _solicita_sin_limite(
+    pregunta: str,
+) -> bool:
+    """Detecta si el usuario pide explícitamente todos los registros."""
+    texto = re.sub(
+        r"\s+",
+        " ",
+        str(pregunta or "").strip().lower(),
+    )
+    if not texto:
+        return False
+    return any(
+        expresion in texto
+        for expresion in EXPRESIONES_SIN_LIMITE
+    )
+
+
 # ============================================================
 # UTILIDADES
 # ============================================================
@@ -450,6 +482,12 @@ def _prompt_sistema() -> str:
         "    }\n"
         "  ],\n"
         '  "limite": 20,\n'
+        "\n"
+        "REGLA DE LÍMITE:\n"
+        "- Si el usuario pide explícitamente todos/todas, la totalidad "
+        "o sin límite, devuelve null en limite.\n"
+        "- Si no pide totalidad y tampoco indica una cantidad, usa 20.\n"
+        "- Si indica una cantidad concreta, úsala respetando el máximo permitido.\n"
         '  "condiciones_no_resueltas": []\n'
         "}\n\n"
 
@@ -599,29 +637,26 @@ def _normalizar_propuesta(
             }
         )
 
-    try:
-
-        limite = int(
-            propuesta.get(
-                "limite",
-                LIMITE_PREDETERMINADO,
-            )
-        )
-
-    except (
-        TypeError,
-        ValueError,
-    ):
-
-        limite = LIMITE_PREDETERMINADO
-
-    limite = max(
-        1,
-        min(
-            limite,
-            LIMITE_MAXIMO_PROPUESTO,
-        ),
+    limite_crudo = propuesta.get(
+        "limite",
+        LIMITE_PREDETERMINADO,
     )
+
+    if limite_crudo is None:
+        limite = None
+    else:
+        try:
+            limite = int(limite_crudo)
+        except (TypeError, ValueError):
+            limite = LIMITE_PREDETERMINADO
+
+        limite = max(
+            1,
+            min(
+                limite,
+                LIMITE_MAXIMO_PROPUESTO,
+            ),
+        )
 
     condiciones = propuesta.get(
         "condiciones_no_resueltas"
@@ -809,6 +844,12 @@ def interpretar_consulta_datos(
         propuesta_cruda,
         modelo=descripcion,
     )
+
+    if (
+        propuesta.get("operacion") == "listar"
+        and _solicita_sin_limite(pregunta)
+    ):
+        propuesta["limite"] = None
 
     return {
         "ok":
